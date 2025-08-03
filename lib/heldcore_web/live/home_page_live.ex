@@ -88,10 +88,14 @@ defmodule HeldcoreWeb.HomePageLive do
 
         <!-- Bottom coral images -->
         <div class="absolute bottom-0 left-0 right-0 flex justify-between items-end z-[5] pointer-events-none">
-          <!-- Mobile: only show left and right corals -->
-          <img src={~p"/images/coral_1.png"} alt="Coral 1" class="h-40 md:h-[50vh] object-contain translate-y-12 md:translate-y-20 -translate-x-10 md:-translate-x-20">
-          <img src={~p"/images/coral_2.png"} alt="Coral 2" class="hidden md:block md:h-[50vh] object-contain md:translate-y-44 md:-translate-x-40">
-          <img src={~p"/images/coral_3.png"} alt="Coral 3" class="h-44 md:h-[60vh] object-contain translate-y-12 md:translate-y-32 translate-x-10 md:-translate-x-20">
+          <div class="corals-container hidden">
+            <!-- Mobile: only show left and right corals -->
+            <img src={~p"/images/coral_1.png"} alt="Coral 1" class="h-40 md:h-[50vh] object-contain translate-y-12 md:translate-y-20 -translate-x-10 md:-translate-x-20">
+            <img src={~p"/images/coral_2.png"} alt="Coral 2" class="hidden md:block md:h-[50vh] object-contain md:translate-y-44 md:-translate-x-40">
+            <img src={~p"/images/coral_3.png"} alt="Coral 3" class="h-44 md:h-[60vh] object-contain translate-y-12 md:translate-y-32 translate-x-10 md:-translate-x-20">
+          </div>
+          <div class="corals-grower" phx-hook="GrowCoral" id="coral-grower">
+          </div>
         </div>
 
         <!-- Coral growth canvas -->

@@ -11,7 +11,7 @@ defmodule HeldcoreWeb.HomePageLive do
       <!-- Slide 1 -->
       <section class="h-screen w-screen flex items-center justify-center bg-[#fff] relative">
         <!-- Background waves layer -->
-        <div id="waves-background" class="absolute inset-0 z-0 pointer-events-none" phx-hook="WavesBackground"></div>
+        <div id="waves-background" class="absolute inset-0 z-0 pointer-events-none hidden" phx-hook="WavesBackground"></div>
 
         <div class="w-full md:w-[min(80vw,1000px)] mx-auto px-4 md:px-4 relative z-5">
           <!-- First line: Logo + Agency name -->

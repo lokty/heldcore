@@ -17,6 +17,7 @@ defmodule HeldcoreWeb.Router do
   scope "/", HeldcoreWeb do
     pipe_through :browser
 
+    live "/coral", CoralLive
     live "/", HomePageLive
   end
 

@@ -1,5 +1,6 @@
 // Import GSAP for animations
 import gsap from "gsap";
+import GrowCoral from "./grow_coral";
 
 // Wave generation utility function
 function generateWaves(config) {
@@ -83,6 +84,7 @@ function isMobile() {
 }
 
 const Hooks = {
+  GrowCoral,
   WavesBackground: {
     mounted() {
       this.generateWaves();

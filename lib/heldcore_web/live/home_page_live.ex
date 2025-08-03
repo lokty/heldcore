@@ -94,7 +94,7 @@ defmodule HeldcoreWeb.HomePageLive do
             <img src={~p"/images/coral_2.png"} alt="Coral 2" class="hidden md:block md:h-[50vh] object-contain md:translate-y-44 md:-translate-x-40">
             <img src={~p"/images/coral_3.png"} alt="Coral 3" class="h-44 md:h-[60vh] object-contain translate-y-12 md:translate-y-32 translate-x-10 md:-translate-x-20">
           </div>
-          <div class="corals-grower" phx-hook="GrowCoral" id="coral-grower">
+          <div class="corals-grower mx-auto" phx-hook="GrowCoral" id="coral-grower">
           </div>
         </div>
 

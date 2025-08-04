@@ -13,10 +13,15 @@ defmodule HeldcoreWeb.CoralLive do
     show_mask: true,
     canvas_width: 400,
     canvas_height: 300,
-    simplify_tolerance: 0.1,
+    simplify_tolerance: 0.0,
     smoothness: 0.5,
     weirdness: 0,
-    branch_shyness: 1.5
+    branch_shyness: 0.8,
+    drawing_mode: false,
+    custom_mask_points: [[79, 46], [79, 154], [81, 226], [108, 286], [149, 286], [153, 285], [185, 221], [208, 168], [223, 191], [235, 283], [278, 289], [298, 286], [312, 275], [327, 263], [339, 226], [348, 188], [347, 129], [305, 37], [289, 27], [224, 79], [214, 112], [182, 122], [168, 103], [167, 85], [156, 37], [117, 22], [98, 25], [89, 30], [79, 56]],
+    fill_mode: true,
+    source_x: 0.3,
+    source_y: 0.8
   }
 
   @impl true
@@ -37,11 +42,61 @@ defmodule HeldcoreWeb.CoralLive do
       |> Enum.filter(fn {k, _v} -> not String.starts_with?(k, "_") end)
       |> Enum.into(%{}, fn {k, v} -> {String.to_existing_atom(k), parse(v)} end)
       |> ensure_boolean(:show_mask, params)
+      |> ensure_boolean(:fill_mode, params)
 
     socket =
       socket
       |> assign(coral_params)
       |> push_event("update_coral", js_params(Map.merge(socket.assigns, coral_params)))
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("toggle_drawing", _params, socket) do
+    new_drawing_mode = !socket.assigns.drawing_mode
+    socket =
+      socket
+      |> assign(:drawing_mode, new_drawing_mode)
+      |> push_event("update_coral", js_params(Map.merge(socket.assigns, %{drawing_mode: new_drawing_mode})))
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("add_mask_point", %{"x" => x, "y" => y}, socket) do
+    if socket.assigns.drawing_mode do
+      new_point = [x, y]
+      points = socket.assigns.custom_mask_points ++ [new_point]
+
+      socket =
+        socket
+        |> assign(:custom_mask_points, points)
+        |> push_event("update_coral", js_params(Map.merge(socket.assigns, %{custom_mask_points: points})))
+
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("clear_mask", _params, socket) do
+    socket =
+      socket
+      |> assign(:custom_mask_points, [])
+      |> push_event("update_coral", js_params(Map.merge(socket.assigns, %{custom_mask_points: []})))
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("set_custom_mask", %{"points" => points}, socket) do
+    socket =
+      socket
+      |> assign(:custom_mask_points, points)
+      |> assign(:drawing_mode, false)
+      |> push_event("update_coral", js_params(Map.merge(socket.assigns, %{custom_mask_points: points, drawing_mode: false})))
 
     {:noreply, socket}
   end
@@ -82,7 +137,12 @@ defmodule HeldcoreWeb.CoralLive do
       simplifyTolerance: a.simplify_tolerance,
       smoothness: a.smoothness,
       weirdness: a.weirdness,
-      branchShyness: a.branch_shyness
+      branchShyness: a.branch_shyness,
+      fillMode: a.fill_mode,
+      sourceX: a.source_x,
+      sourceY: a.source_y,
+      drawingMode: a.drawing_mode,
+      customMaskPoints: a.custom_mask_points
     }
   end
 
@@ -105,6 +165,8 @@ defmodule HeldcoreWeb.CoralLive do
       <form phx-change="update" class="grid grid-cols-4 gap-4">
         <%= render_slider "Canvas width", :canvas_width, 200, 800, assigns %>
         <%= render_slider "Canvas height", :canvas_height, 150, 600, assigns %>
+        <%= render_slider "Source X", :source_x, 0, 1, assigns, step: 0.05 %>
+        <%= render_slider "Source Y", :source_y, 0, 1, assigns, step: 0.05 %>
         <%= render_slider "Attractors", :attractor_count, 50, 500, assigns %>
         <%= render_slider "Max angle", :max_abs_angle, 0, 90, assigns %>
         <%= render_slider "Segment length", :segment_length, 3, 30, assigns %>
@@ -113,14 +175,24 @@ defmodule HeldcoreWeb.CoralLive do
         <%= render_slider "Segment scale", :segment_scale, 0.3, 1, assigns, step: 0.05 %>
         <%= render_slider "Mask size", :mask_size, 0.1, 0.6, assigns, step: 0.05 %>
         <%= render_slider "Mask strength", :mask_strength, 0.05, 0.3, assigns, step: 0.02 %>
+        <label class="flex items-center space-x-2 text-xs">
+          <input type="checkbox" name="fill_mode" checked={@fill_mode} />
+          <span>Fill mode</span>
+        </label>
         <%= render_slider "Simplify tolerance", :simplify_tolerance, 0, 20, assigns %>
         <%= render_slider "Smoothness", :smoothness, 0, 2, assigns, step: 0.1 %>
         <%= render_slider "Weirdness", :weirdness, 0, 1, assigns, step: 0.05 %>
         <%= render_slider "Branch shyness", :branch_shyness, 0, 3, assigns, step: 0.1 %>
-        <label class="flex items-center space-x-2 text-xs col-span-2">
+        <label class="flex items-center space-x-2 text-xs">
           <input type="checkbox" name="show_mask" checked={@show_mask} />
           <span>Show Mask</span>
         </label>
+        <div class="flex gap-2 text-xs">
+          <button type="button" phx-click="toggle_drawing" class={"px-2 py-1 rounded text-white #{if @drawing_mode, do: "bg-red-500", else: "bg-blue-500"}"}>
+            <%= if @drawing_mode, do: "Stop Drawing", else: "Draw Mask" %>
+          </button>
+          <button type="button" phx-click="clear_mask" class="px-2 py-1 rounded bg-gray-500 text-white">Clear</button>
+        </div>
       </form>
 
       <h3 class="text-xs font-semibold">Current Config (copy & use as defaults):</h3>

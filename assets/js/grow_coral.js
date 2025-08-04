@@ -49,29 +49,41 @@ const drawMask = ({ size = 0.3, strength = 0.1 } = {}) => {
   return path;
 };
 
+// Draw custom mask from user-drawn points
+const drawCustomMask = (points) => {
+  const path = new paper.Path({ 
+    closed: true, 
+    fillColor: new paper.Color(0, 0, 1, 0.1),
+    strokeColor: new paper.Color(0, 0, 1, 0.3),
+    strokeWidth: 2
+  });
+  
+  points.forEach(([x, y]) => path.add(new paper.Point(x, y)));
+  path.smooth();
+  
+  paper.view.update();
+  return path;
+};
+
 /*
  * Grow coral using a lightweight Space-Colonization algorithm.
  *  – mask          : paper.Path that defines the growth boundary
  *  – animate       : if true, iterate on every frame
  *  – attractorCount: number of seed (attractor) points inside the mask
  */
-const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = Math.PI / 2, segmentLength = 13, nodeRadius = 5, tapering = 0.96, segmentScale = 0.7, replenishAttractors = true, simplifyTolerance = 5, smoothness = 0.5, weirdness = 0 } = {}) => {
+const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = Math.PI / 2, fillMode = false, segmentLength = 13, nodeRadius = 5, tapering = 0.96, segmentScale = 0.7, replenishAttractors = true, simplifyTolerance = 5, smoothness = 0.5, weirdness = 0, branchShyness = 1, sourceX = 0.5, sourceY = 1 } = {}) => {
   const { width: w, height: h } = paper.view.size;
   // Collect segment shapes for union and smoothing
   const segments = [];
-  const root = new paper.Point(w / 2, h - 6);
+  const root = new paper.Point(sourceX * w, sourceY * h);
 
   // Helper —— random point inside mask path
   const randomInside = () => {
-    let p;
-    let angle = 0;
-    const up = new paper.Point(0, -1);
-    do {
-      p = new paper.Point(Math.random() * w, Math.random() * h);
-      const v = p.subtract(root).normalize();
-      angle = Math.acos(v.dot(up));
-    } while (!mask.contains(p) || p.y >= h - 6 || angle > maxAbsAngle);
-    return p;
+          let p;
+      do {
+        p = new paper.Point(Math.random() * w, Math.random() * h);
+      } while (!mask.contains(p));
+      return p;
   };
 
   const attractors = Array.from({ length: attractorCount }, randomInside);
@@ -119,16 +131,25 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
       const to = from.add(vec.normalize(stepLen));
       const segDir = to.subtract(from);
 
-      // Skip if new point is too close to existing branches
-      const tooClose = branches.some(b => b.point.getDistance(to) < stepLen * 0.9);
+      // Skip if new point is too close to existing branches (with shyness factor)
+      const tooClose = branches.some((b, j) => {
+        // Skip checking against the parent branch itself
+        if (j === idx) return false;
+        const branchRadius = Math.max(1, nodeRadius * Math.pow(tapering, b.level));
+        const shyDistance = (branchRadius + stepLen) * branchShyness;
+        return b.point.getDistance(to) < shyDistance;
+      });
       if (tooClose) return;
       // Randomly omit branch based on weirdness
       if (Math.random() < weirdness * 0.3) return;
 
+      // Check if the endpoint would be inside the mask
+      if (!mask.contains(to)) return;
+
       // Enforce absolute angle limit relative to vertical
       const up = new paper.Point(0, -1);
       const segAngle = Math.acos(segDir.normalize().dot(up));
-      if (segAngle > maxAbsAngle) return;
+      if (!fillMode && segAngle > maxAbsAngle) return;
 
              const parentBranch = branches[idx];
        parentBranch.children += 1;
@@ -256,10 +277,20 @@ const GrowCoral = {
       nodeRadius: 5,
       tapering: 0.96,
       segmentScale: 0.7,
+      fillMode: false,
+      sourceX: 0.5,
+      sourceY: 1,
     };
     this.renderCoral(defaultParams);
 
     this.handleEvent("update_coral", params => this.renderCoral(params));
+    
+    // Mouse event handlers for drawing custom mask
+    this.isDrawing = false;
+    this.currentPath = null;
+    this.canvas.addEventListener('mousedown', e => this.handleMouseDown(e));
+    this.canvas.addEventListener('mousemove', e => this.handleMouseMove(e));
+    document.addEventListener('mouseup', e => this.handleMouseUp(e));
   },
 
   renderCoral(params) {
@@ -274,13 +305,79 @@ const GrowCoral = {
     }
     
     paper.setup(this.canvas);
-    const { size = 0.3, strength = 0.1, showMask = true, canvasWidth, canvasHeight, ...grow } = params;
-    const mask = drawMask({ size, strength });
+    const { size = 0.3, strength = 0.1, showMask = true, drawingMode = false, fillMode = false, sourceX = 0.5, sourceY = 1, customMaskPoints = [], canvasWidth, canvasHeight, ...grow } = params;
+    
+    this.drawingMode = drawingMode;
+    
+    let mask;
+    if (customMaskPoints.length > 2) {
+      // Use custom drawn mask
+      mask = drawCustomMask(customMaskPoints);
+    } else {
+      // Use parametric mask
+      mask = drawMask({ size, strength });
+    }
+    
     if (!showMask) {
       mask.fillColor.alpha = 0;
       mask.strokeColor = null;
     }
-    growCoral({ mask, ...grow });
+    growCoral({ mask, fillMode, sourceX, sourceY, ...grow });
+  },
+
+  handleCanvasClick(event) {
+    console.log("Canvas clicked, drawingMode:", this.drawingMode);
+    if (!this.drawingMode) return;
+    
+    const rect = this.canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    console.log("Adding mask point:", x, y);
+    this.pushEvent("add_mask_point", { x: x, y: y });
+  },
+
+  eventToPoint(event) {
+    const rect = this.canvas.getBoundingClientRect();
+    return new paper.Point(event.clientX - rect.left, event.clientY - rect.top);
+  },
+
+  handleMouseDown(event) {
+    if (!this.drawingMode) return;
+    this.isDrawing = true;
+    const pt = this.eventToPoint(event);
+    this.currentPath = new paper.Path();
+    this.currentPath.strokeColor = 'blue';
+    this.currentPath.strokeWidth = 4;
+    this.currentPath.opacity = 0.3;
+    this.currentPath.add(pt);
+  },
+
+  handleMouseMove(event) {
+    if (!this.isDrawing) return;
+    const pt = this.eventToPoint(event);
+    this.currentPath.add(pt);
+    paper.view.update();
+  },
+
+  handleMouseUp(event) {
+    if (!this.isDrawing) return;
+    const pt = this.eventToPoint(event);
+    this.currentPath.add(pt);
+    this.isDrawing = false;
+
+    if (this.currentPath.segments.length > 2) {
+      this.currentPath.simplify(2);
+      this.currentPath.closed = true;
+      this.currentPath.fillColor = new paper.Color(0, 0, 1, 0.1);
+      this.currentPath.strokeColor = null;
+
+      const points = this.currentPath.segments.map(seg => [seg.point.x, seg.point.y]);
+      this.pushEvent('set_custom_mask', { points: points });
+    } else {
+      this.currentPath.remove();
+    }
+    this.currentPath = null;
   },
 
   destroyed() {

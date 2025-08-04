@@ -55,8 +55,10 @@ const drawMask = ({ size = 0.3, strength = 0.1 } = {}) => {
  *  – animate       : if true, iterate on every frame
  *  – attractorCount: number of seed (attractor) points inside the mask
  */
-const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = Math.PI / 2, segmentLength = 13, nodeRadius = 5, tapering = 0.96, segmentScale = 0.7, replenishAttractors = true } = {}) => {
+const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = Math.PI / 2, segmentLength = 13, nodeRadius = 5, tapering = 0.96, segmentScale = 0.7, replenishAttractors = true, simplifyTolerance = 5, smoothness = 0.5, weirdness = 0 } = {}) => {
   const { width: w, height: h } = paper.view.size;
+  // Collect segment shapes for union and smoothing
+  const segments = [];
   const root = new paper.Point(w / 2, h - 6);
 
   // Helper —— random point inside mask path
@@ -75,9 +77,9 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
   const attractors = Array.from({ length: attractorCount }, randomInside);
   const branches = [{ point: root, parent: null, level: 0, children: 0 }];
 
-  const STEP = segmentLength;
-  const ATTRACT_DIST = STEP * 5;
-  const KILL_DIST = STEP + 2;
+  const baseSTEP = segmentLength;
+  const ATTRACT_DIST = baseSTEP * 5;
+  const KILL_DIST = baseSTEP + 2;
 
       const iterate = () => {
       if (!attractors.length) return true; // done
@@ -113,12 +115,15 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     // 2. Create new branches in averaged directions
     influences.forEach((vec, idx) => {
       const from = branches[idx].point;
-      const to = from.add(vec.normalize(STEP));
+      const stepLen = baseSTEP * (1 + (Math.random() - 0.5) * weirdness);
+      const to = from.add(vec.normalize(stepLen));
       const segDir = to.subtract(from);
 
       // Skip if new point is too close to existing branches
-      const tooClose = branches.some(b => b.point.getDistance(to) < STEP * 0.9);
+      const tooClose = branches.some(b => b.point.getDistance(to) < stepLen * 0.9);
       if (tooClose) return;
+      // Randomly omit branch based on weirdness
+      if (Math.random() < weirdness * 0.3) return;
 
       // Enforce absolute angle limit relative to vertical
       const up = new paper.Point(0, -1);
@@ -143,7 +148,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
        const w1 = sizeFrom * 2 * segmentScale;
        const w2 = sizeTo * 2 * segmentScale;
        /* eslint-disable no-new */
-       new paper.Path({
+       const segShape = new paper.Path({
         segments: [
           from.add(normal.multiply(w1 / 2)),
           from.subtract(normal.multiply(w1 / 2)),
@@ -153,6 +158,12 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
         closed: true,
         fillColor: "red",
       });
+      // collect for union/smoothing
+      segments.push(segShape);
+      // connector circle between segments to avoid gaps
+      const connectorRadius = Math.max(w1, w2) * 0.5;
+      const connector = new paper.Path.Circle({ center: from, radius: connectorRadius, fillColor: 'red' });
+      segments.push(connector);
       /* eslint-enable no-new */
 
 
@@ -163,7 +174,30 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
       while (attractors.length < attractorCount) attractors.push(randomInside());
     }
 
-    if (!grown) { drawNodes(); return true; }
+         if (!grown) { 
+       // final node rendering
+       drawNodes();
+       // merge & smooth segments
+       if (segments.length > 1) {
+         let unified = segments[0];
+         for (let i = 1; i < segments.length; i++) {
+           const newUnified = unified.unite(segments[i]);
+           unified.remove();
+           segments[i].remove();
+           unified = newUnified;
+         }
+         // 1. Simplify (reduce complexity)
+         if (simplifyTolerance > 0) {
+           unified.simplify(simplifyTolerance);
+         }
+         // 2. Smooth (geometric smoothing)
+         if (smoothness > 0) {
+           unified.smooth({ type: 'geometric', factor: smoothness });
+         }
+         unified.fillColor = "red";
+       }
+       return true; 
+     }
     paper.view.update();
     return false;
   };
@@ -186,6 +220,25 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     let guard = 0;
     while (!iterate() && guard < 500) guard += 1; // hard cap iterations
     drawNodes();
+    // merge & smooth segments
+    if (segments.length > 1) {
+      let unified = segments[0];
+      for (let i = 1; i < segments.length; i++) {
+        const newUnified = unified.unite(segments[i]);
+        unified.remove();
+        segments[i].remove();
+        unified = newUnified;
+      }
+      // 1. Simplify (reduce complexity)
+      if (simplifyTolerance > 0) {
+        unified.simplify(simplifyTolerance);
+      }
+      // 2. Smooth (geometric smoothing)
+      if (smoothness > 0) {
+        unified.smooth({ type: 'geometric', factor: smoothness });
+      }
+      unified.fillColor = "red";
+    }
   }
 };
 

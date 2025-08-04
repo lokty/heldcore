@@ -13,9 +13,10 @@ defmodule HeldcoreWeb.CoralLive do
     show_mask: true,
     canvas_width: 400,
     canvas_height: 300,
-    simplify_tolerance: 1,
+    simplify_tolerance: 0.1,
     smoothness: 0.5,
-    weirdness: 0
+    weirdness: 0,
+    branch_shyness: 1.5
   }
 
   @impl true
@@ -80,7 +81,8 @@ defmodule HeldcoreWeb.CoralLive do
       canvasHeight: round(a.canvas_height),
       simplifyTolerance: a.simplify_tolerance,
       smoothness: a.smoothness,
-      weirdness: a.weirdness
+      weirdness: a.weirdness,
+      branchShyness: a.branch_shyness
     }
   end
 
@@ -114,6 +116,7 @@ defmodule HeldcoreWeb.CoralLive do
         <%= render_slider "Simplify tolerance", :simplify_tolerance, 0, 20, assigns %>
         <%= render_slider "Smoothness", :smoothness, 0, 2, assigns, step: 0.1 %>
         <%= render_slider "Weirdness", :weirdness, 0, 1, assigns, step: 0.05 %>
+        <%= render_slider "Branch shyness", :branch_shyness, 0, 3, assigns, step: 0.1 %>
         <label class="flex items-center space-x-2 text-xs col-span-2">
           <input type="checkbox" name="show_mask" checked={@show_mask} />
           <span>Show Mask</span>

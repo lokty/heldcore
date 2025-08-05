@@ -10,7 +10,7 @@ defmodule HeldcoreWeb.CoralLive do
     segment_scale: 0.85,
     mask_size: 0.3,
     mask_strength: 0.11,
-    show_mask: true,
+    show_mask: false,
     canvas_width: 400,
     canvas_height: 300,
     simplify_tolerance: 0.0,
@@ -18,31 +18,45 @@ defmodule HeldcoreWeb.CoralLive do
     weirdness: 0,
     branch_shyness: 0.8,
     drawing_mode: false,
-    custom_mask_points: [[79, 46], [79, 154], [81, 226], [108, 286], [149, 286], [153, 285], [185, 221], [208, 168], [223, 191], [235, 283], [278, 289], [298, 286], [312, 275], [327, 263], [339, 226], [348, 188], [347, 129], [305, 37], [289, 27], [224, 79], [214, 112], [182, 122], [168, 103], [167, 85], [156, 37], [117, 22], [98, 25], [89, 30], [79, 56]],
+    custom_mask_points: [],
     fill_mode: true,
+    gradient_colors: ["#ff385d","#ff8093"],
     source_x: 0.3,
-    source_y: 0.8
+    source_y: 0.8,
+    show_skeleton: false
   }
 
   @impl true
   def mount(_params, _session, socket) do
+    params = js_params(@defaults)
+    IO.inspect(params, label: "JS params sent on mount")
+
     socket =
       socket
       |> assign(@defaults)
-      |> push_event("update_coral", js_params(@defaults))
+      |> push_event("update_coral", params)
 
     {:ok, socket}
   end
 
   @impl true
   def handle_event("update", params, socket) do
-    # Filter out Phoenix form params and only keep our coral parameters
-        coral_params =
+    # Decode gradient_colors JSON before parsing other fields
+    gradient_colors =
+      case Map.get(params, "gradient_colors") do
+        nil -> socket.assigns.gradient_colors
+        v -> Jason.decode!(v)
+      end
+
+    # Filter out Phoenix form params, custom gradient_colors, and parse the rest
+    coral_params =
       params
-      |> Enum.filter(fn {k, _v} -> not String.starts_with?(k, "_") end)
+      |> Enum.filter(fn {k, _v} -> not String.starts_with?(k, "_") and k != "gradient_colors" end)
       |> Enum.into(%{}, fn {k, v} -> {String.to_existing_atom(k), parse(v)} end)
       |> ensure_boolean(:show_mask, params)
       |> ensure_boolean(:fill_mode, params)
+      |> ensure_boolean(:show_skeleton, params)
+      |> Map.put(:gradient_colors, gradient_colors)
 
     socket =
       socket
@@ -141,6 +155,8 @@ defmodule HeldcoreWeb.CoralLive do
       fillMode: a.fill_mode,
       sourceX: a.source_x,
       sourceY: a.source_y,
+      gradientColors: a.gradient_colors,
+      showSkeleton: a.show_skeleton,
       drawingMode: a.drawing_mode,
       customMaskPoints: a.custom_mask_points
     }
@@ -179,6 +195,10 @@ defmodule HeldcoreWeb.CoralLive do
           <input type="checkbox" name="fill_mode" checked={@fill_mode} />
           <span>Fill mode</span>
         </label>
+        <label class="flex flex-col text-xs col-span-4">
+          <span>Gradient Colors (JSON array):</span>
+          <input type="text" name="gradient_colors" value={Jason.encode!(@gradient_colors)} class="mt-1 p-1 border text-xs" />
+        </label>
         <%= render_slider "Simplify tolerance", :simplify_tolerance, 0, 20, assigns %>
         <%= render_slider "Smoothness", :smoothness, 0, 2, assigns, step: 0.1 %>
         <%= render_slider "Weirdness", :weirdness, 0, 1, assigns, step: 0.05 %>
@@ -186,6 +206,10 @@ defmodule HeldcoreWeb.CoralLive do
         <label class="flex items-center space-x-2 text-xs">
           <input type="checkbox" name="show_mask" checked={@show_mask} />
           <span>Show Mask</span>
+        </label>
+        <label class="flex items-center space-x-2 text-xs">
+          <input type="checkbox" name="show_skeleton" checked={@show_skeleton} />
+          <span>Show Skeleton</span>
         </label>
         <div class="flex gap-2 text-xs">
           <button type="button" phx-click="toggle_drawing" class={"px-2 py-1 rounded text-white #{if @drawing_mode, do: "bg-red-500", else: "bg-blue-500"}"}>

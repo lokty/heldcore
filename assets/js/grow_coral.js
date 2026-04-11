@@ -834,6 +834,11 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
   // sync paths share one implementation (and one timing path).
   const applyTexture = () => {
     if (!(texture && textureStrength > 0 && textureImage)) return;
+    // Guard against an Image object whose network load failed after the flag was
+    // set: on prod the noise asset can 404 and drawImage() throws
+    // "Passed-in image is broken". Without this the error bubbles into Paper.js's
+    // onFrame handler, which kills subsequent frames.
+    if (!textureImage.complete || !textureImage.naturalWidth) return;
     const textureStart = performance.now();
     const canvas = paperScope.view.element;
     const ctx = canvas.getContext('2d');
@@ -1079,10 +1084,15 @@ const GrowCoral = {
       textureStrength: 1,
     };
     
-    // Preload static noise texture
+    // Preload static noise texture. The source path works in Phoenix dev; the
+    // static_export mix task rewrites it for the GitHub Pages bundle.
     this.noiseImageLoaded = false;
     this.noiseImage = new Image();
     this.noiseImage.onload = () => { this.noiseImageLoaded = true; };
+    this.noiseImage.onerror = () => {
+      this.noiseImageLoaded = false;
+      console.warn("noise texture failed to load:", this.noiseImage.src);
+    };
     this.noiseImage.src = "/images/noise.jpg";
 
     this.params = getHookParams(this.el, defaultParams);

@@ -146,7 +146,7 @@ const drawCustomMask = (points, paperScope = paper) => {
  *  – animate       : if true, iterate on every frame
  *  – attractorCount: number of seed (attractor) points inside the mask
  */
-const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = Math.PI / 2, fillMode = false, segmentLength = 13, nodeRadius = 5, tapering = 0.96, segmentScale = 0.7, replenishAttractors = true, simplifyTolerance = 5, smoothness = 0.5, weirdness = 0, branchShyness = 1, sourceX = 0.5, sourceY = 1, gradientColors = ["black","red","#fff"], showSkeleton = true, vectorMask = true, texture = false, textureStrength = 1, textureImage = null, paperScope = paper } = {}) => {
+const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = Math.PI / 2, fillMode = false, segmentLength = 13, nodeRadius = 5, tapering = 0.96, segmentScale = 0.7, replenishAttractors = true, simplifyTolerance = 5, smoothness = 0.5, weirdness = 0, branchShyness = 1, sourceX = 0.5, sourceY = 1, gradientColors = ["black","red","#fff"], showSkeleton = true, vectorMask = true, texture = false, textureStrength = 1, textureImage = null, paperScope = paper, onFinish = null } = {}) => {
   const { width: w, height: h } = paperScope.view.size;
   
   // Create off-screen canvas for incremental mask painting (optimization #1)
@@ -830,6 +830,23 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     console.log(`Highlight apply: ${(performance.now() - highlightStart).toFixed(2)}ms`);
   };
 
+  // Measure the coral's painted surface area in pixels. In raster mode we sum
+  // branchIdBuffer; in vector mode we read smoothedMaskPath.area (Paper.js
+  // computes it geometrically from the unioned path). Returns a normalized
+  // coverage ratio of the canvas (0..1) plus the raw pixel count.
+  const measureSurface = () => {
+    const totalPixels = w * h || 1;
+    let pixels = 0;
+    if (vectorMask) {
+      pixels = smoothedMaskPath ? Math.abs(smoothedMaskPath.area) : 0;
+    } else {
+      for (let i = 0; i < branchIdBuffer.length; i++) {
+        if (branchIdBuffer[i]) pixels++;
+      }
+    }
+    return { pixels, ratio: pixels / totalPixels, branchCount: branches.length };
+  };
+
   // Composite the texture onto the coral shape. Extracted so both animate and
   // sync paths share one implementation (and one timing path).
   const applyTexture = () => {
@@ -953,6 +970,14 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
         console.log(`Skeleton drawing: ${(skeletonEnd - skeletonStart).toFixed(2)}ms`);
         
         paperScope.view.update();
+
+        // Give the caller a chance to reject a too-small coral before we spend
+        // time on the highlight + texture passes. If onFinish returns false the
+        // caller is responsible for kicking off another render.
+        const surface = measureSurface();
+        console.log(`Coral surface: ${surface.pixels | 0}px² (${(surface.ratio * 100).toFixed(1)}% of canvas, ${surface.branchCount} branches)`);
+        if (onFinish && onFinish(surface) === false) return;
+
         applyHighlight();
         applyTexture();
       }
@@ -1015,6 +1040,11 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     console.log(`Total time: ${totalTime.toFixed(2)}ms`);
     
     paperScope.view.update();
+
+    const surface = measureSurface();
+    console.log(`Coral surface: ${surface.pixels | 0}px² (${(surface.ratio * 100).toFixed(1)}% of canvas, ${surface.branchCount} branches)`);
+    if (onFinish && onFinish(surface) === false) return;
+
     applyHighlight();
     applyTexture();
   }
@@ -1129,12 +1159,12 @@ const GrowCoral = {
     }
   },
 
-  renderCoral(params) {
+  renderCoral(params, attempt = 1) {
     // Activate this coral's Paper.js scope
     this.paperScope.activate();
-    
+
     if (this.paperScope.project) this.paperScope.project.remove();
-    
+
     // Update backing-store resolution if provided. Don't touch
     // canvas.style.width/height — those are set to 100% by createCanvas
     // so the canvas scales to its parent div (which is sized via Tailwind
@@ -1143,12 +1173,12 @@ const GrowCoral = {
       this.canvas.width = params.canvasWidth;
       this.canvas.height = params.canvasHeight;
     }
-    
+
     this.paperScope.setup(this.canvas);
     const { size, strength, showMask, drawingMode, fillMode, sourceX, sourceY, gradientColors, showSkeleton, customMaskPoints, ...grow } = params;
-    
+
     this.drawingMode = drawingMode;
-    
+
     let mask;
     if (customMaskPoints.length > 2) {
       // Use custom drawn mask
@@ -1157,24 +1187,42 @@ const GrowCoral = {
       // Use parametric mask
       mask = drawMask({ size, strength }, this.paperScope);
     }
-    
+
     if (!showMask) {
       mask.fillColor.alpha = 0;
       mask.strokeColor = null;
     }
-    
-    growCoral({ 
-      mask, 
-      fillMode, 
-      sourceX, 
-      sourceY, 
-      gradientColors, 
-      showSkeleton, 
+
+    // Coral regeneration threshold. Growth occasionally terminates almost
+    // immediately (e.g., the mask's wavy edge randomly puts the root outside,
+    // or the attractor set happens to be unreachable) and leaves a blank or
+    // dot-sized result. Retry up to MIN_CORAL_ATTEMPTS times until the surface
+    // ratio crosses the threshold.
+    const MIN_SURFACE_RATIO = 0.015;
+    const MAX_CORAL_ATTEMPTS = 5;
+
+    growCoral({
+      mask,
+      fillMode,
+      sourceX,
+      sourceY,
+      gradientColors,
+      showSkeleton,
       texture: params.texture && this.noiseImageLoaded,
       textureStrength: params.textureStrength,
       textureImage: this.noiseImage,
       paperScope: this.paperScope,
-      ...grow 
+      ...grow,
+      onFinish: ({ ratio, branchCount }) => {
+        if (ratio < MIN_SURFACE_RATIO && attempt < MAX_CORAL_ATTEMPTS) {
+          console.warn(
+            `Coral too small (${(ratio * 100).toFixed(1)}%, ${branchCount} branches), regenerating (attempt ${attempt + 1}/${MAX_CORAL_ATTEMPTS})`
+          );
+          this.renderCoral(params, attempt + 1);
+          return false;
+        }
+        return true;
+      },
     });
   },
 

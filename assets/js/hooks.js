@@ -17,7 +17,8 @@ function generateWaves(config) {
     startY = 50,
     heightPercent = 50,
     filter = null,
-    opacity = 1
+    opacity = 1,
+    basePath = "priv/static/images/"
   } = config;
   
   const container = document.getElementById(containerId);
@@ -26,7 +27,7 @@ function generateWaves(config) {
   // Clear existing waves
   container.innerHTML = '';
   
-  const waveImages = Array.from({length: imageCount}, (_, i) => `/priv/static/images/${imagePrefix}_${i + 1}.png`);
+  const waveImages = Array.from({length: imageCount}, (_, i) => `${basePath}${imagePrefix}_${i + 1}.png`);
   
   const cellWidth = 100 / gridCols;
   const cellHeight = heightPercent / gridRows;

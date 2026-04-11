@@ -67,7 +67,7 @@ defmodule HeldcoreWeb.HomePageLive do
             <button
               type="button"
               onclick="document.getElementById('inquiry-dialog').showModal()"
-              class="mt-6 md:mt-10 inline-flex items-center bg-gray-900 text-white border-4 border-white px-7 py-3 md:px-9 md:py-4 rounded-xl font-semibold text-base md:text-lg hover:bg-gray-800 transition-colors cursor-pointer"
+              class="mt-6 md:mt-10 inline-flex items-center bg-gray-900 text-white border-2 border-white px-7 py-3 md:px-9 md:py-4 rounded-xl font-semibold text-base md:text-lg hover:bg-gray-800 transition-colors cursor-pointer"
             >
               Inquiry
             </button>
@@ -81,7 +81,7 @@ defmodule HeldcoreWeb.HomePageLive do
         >
           <form
             method="POST"
-            action="https://formsubmit.co/moritzheld87@gmail.com"
+            action="https://formsubmit.co/6a8ec8dbc8fff8461ab30f18bef858e8"
             class="p-6 md:p-8 flex flex-col gap-4 font-['Geist',sans-serif]"
           >
             <div class="flex items-center justify-between">
@@ -245,7 +245,7 @@ defmodule HeldcoreWeb.HomePageLive do
             <!-- Bottom Bar -->
             <div class="border-t border-gray-200 pt-6">
               <div class="flex flex-col md:flex-row justify-between items-center text-xs text-gray-600">
-                <p>&copy; 2025 Heldcore GmbH. All rights reserved.</p>
+                <p>&copy; 2026 Heldcore GmbH. All rights reserved.</p>
                 <div class="flex space-x-4 mt-2 md:mt-0">
                   <span>Handelsregister: HRB 21610</span>
                   <span>USt-IdNr.: DE341234567</span>

@@ -26,7 +26,7 @@ function generateWaves(config) {
   // Clear existing waves
   container.innerHTML = '';
   
-  const waveImages = Array.from({length: imageCount}, (_, i) => `/images/${imagePrefix}_${i + 1}.png`);
+  const waveImages = Array.from({length: imageCount}, (_, i) => `/priv/static/images/${imagePrefix}_${i + 1}.png`);
   
   const cellWidth = 100 / gridCols;
   const cellHeight = heightPercent / gridRows;

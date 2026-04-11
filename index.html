@@ -1,455 +1,172 @@
-<!DOCTYPE html>
+<!-- <HeldcoreWeb.Layouts.root> lib/heldcore_web/components/layouts/root.html.heex:1 (heldcore) --><!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Automation Agency</title>
-    <link rel="icon" href="priv/static/favicon.ico">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="fjEZHgABfTQZLH10JR0ATzc8PHMDICB_6kRmLuKN-O4YGM4xyLs2SUu6">
+    <!-- @caller lib/heldcore_web/components/layouts/root.html.heex:7 (heldcore) --><!-- <Phoenix.Component.live_title> lib/phoenix_component.ex:2242 (phoenix_live_view) --><title data-default="Automation Agency" data-suffix=" · Heldcore">
+      Automation Agency
+     · Heldcore</title><!-- </Phoenix.Component.live_title> -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
-</head>
-<body class="font-['Inter',sans-serif] w-screen overflow-x-hidden">
-    <!-- Slide 1 -->
-    <section class="h-screen w-screen flex items-center justify-center bg-white relative">
-        <!-- Background waves layer -->
-        <div id="waves-background" class="absolute inset-0 z-0 pointer-events-none"></div>
-        
-        <div class="w-full md:w-[min(80vw,1000px)] mx-auto px-4 md:px-4 relative z-5">
-            <!-- First line: Logo + Agency name -->
-            <div class="md:w-[800px] mx-auto flex flex-col md:flex-row items-start md:items-center mb-2 gap-4 md:gap-20">
-                <!-- Logo -->
-				<div class="flex flex-col md:mt-[50px]">	
-                	<img src="priv/static/images/logo.png" alt="Logo" class="w-12 h-12 md:w-20 md:h-20 object-contain">
-					<div class="flex text-lg md:ml-0.5 md:text-sm mt-1 font-black">	
-						<div>HELD</div>
-						<div><span class="text-rose-500">C</span>ORE</div>
-					</div>
-				</div>
-                <!-- Agency name in two lines -->
-                <div class="flex mt-10 md:mt-0 gap-4 md:flex-col text-3xl md:text-7xl font-bold text-left flex-grow md:translate-y-[90px] z-10">
-                    <div class="text-gray-900">Automation</div>
-                    <div class="text-gray-900 md:text-white">Agency</div>
-                </div>
-            </div>
-            
-            <!-- Second line: Background image div -->
-            <div class="h-96 md:h-full w-full rounded-lg bg-blue-600 md:bg-transparent bg-contain md:bg-cover bg-center bg-no-repeat relative overflow-hidden mt-8 md:mt-0">
-				<img src="priv/static/images/rectangle.png" alt="Background" class="hidden md:block w-full h-full object-contain md:object-cover">
-                <!-- White waves layer inside rectangle -->
-                <div id="rectangle-waves" class="absolute inset-0 z-0 pointer-events-none"></div>
-                <div class="absolute inset-0 flex items-center justify-start md:justify-center px-8 md:px-40 pb-12 md:pb-26 z-10 pt-10 md:pt-0">
-                    <div class="flex flex-col items-start md:items-center text-left md:text-center gap-6">
-                        <!-- Pearl and text container -->
-                        <div class="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6">
-                            <img src="priv/static/images/pearl.png" alt="Pearl" class="w-16 h-16 md:w-24 md:h-24 object-contain flex-shrink-0 md:order-2">
-                            <p id="animated-text" class="text-white text-base md:text-2xl font-light text-left relative">
-                                <span class="inline-block">We 
-                                    <span class="font-black text-yellow-200">help</span>
-                                </span>
-                                <span class="inline-block">businesses</span>
-                                <span class="inline-block">to 
-                                    <span class="font-bold text-cyan-200">identify</span>
-                                </span>
-                                <span class="inline-block relative">potentials
-                                    <svg class="absolute -bottom-3 left-0 w-full h-4 pointer-events-none" viewBox="0 0 100 10" preserveAspectRatio="none">
-                                        <path d="M0,5 Q25,0 50,5 T100,5" stroke="currentColor" stroke-width="2" fill="none" class="text-yellow-300 underline-path"/>
-                                    </svg>
-                                </span>
-                                <span class="inline-block">for</span>
-                                <span class="inline-block font-extrabold text-lime-300">automation
-                                    <svg class="inline w-6 h-6 ml-1 -mt-1 shape-sparkle" viewBox="0 0 24 24" fill="currentColor" class="text-yellow-300">
-                                        <path d="M12 0l1.5 4.5L18 6l-4.5 1.5L12 12l-1.5-4.5L6 6l4.5-1.5z"/>
-                                    </svg>
-                                </span>
-                                <span class="inline-block">and</span>
-                                <span class="inline-block">provide</span>
-                                <span class="inline-block font-bold text-orange-200">custom-fit</span>
-                                <span class="inline-block">solutions</span>
-                                <span class="inline-block">to</span>
-                                <span class="inline-block relative">real-world
-                                    <span class="absolute -bottom-2 left-0 w-full h-1 bg-gradient-to-r from-yellow-300 to-orange-300 rounded-full highlight-bar"></span>
-                                </span>
-                                <span class="inline-block font-black text-pink-200">problems.</span>
-                            </p>
-                        </div>
-                        <!-- CTA Button -->
-                        <a href="mailto:info@heldcore.com?subject=Inquiry&body=Hi%20Heldcore!%20I%20would%20like%20to%20automate%20something%20in%20my%20company:%20__" id="cta-button" class="mt-5 md:mt-10 bg-white text-black px-8 py-4 md:px-10 md:py-5 rounded-xl font-black text-lg md:text-xl flex items-center gap-3 self-start relative" style="box-shadow: 0 5px 10px -5px rgba(0, 63, 163, 0.5), 0 10px 10px -5px rgba(14, 87, 175, 0.3); text-decoration: none;">
-                                                         <div class="relative">
-                                 <svg id="main-icon" class="w-12 h-12 md:w-14 md:h-14 text-red-500" fill="currentColor" viewBox="0 0 24 24">
-                                     <path id="spark-path-1" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"></path>
-                                     <path id="spark-path-2" d="M18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"></path>
-                                                                  </svg>
-                            </div>
-                            <span>Let's Automate!</span>
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Bottom coral images -->
-        <div class="absolute bottom-0 left-0 right-0 flex justify-between items-end z-15 pointer-events-none">
-            <!-- Mobile: only show left and right corals -->
-            <img src="priv/static/images/coral_1.png" alt="Coral 1" class="h-40 md:h-[50vh] object-contain translate-y-12 md:translate-y-20 -translate-x-10 md:-translate-x-20">
-            <img src="priv/static/images/coral_2.png" alt="Coral 2" class="hidden md:block md:h-[50vh] object-contain md:translate-y-44 md:-translate-x-40">
-            <img src="priv/static/images/coral_3.png" alt="Coral 3" class="h-44 md:h-[60vh] object-contain translate-y-12 md:translate-y-32 translate-x-10 md:-translate-x-20">
-        </div>
-
-    </section>
-
-    
-
-    <!-- White gradient section -->
-
-    <section class="h-[100px] w-screen bg-gradient-to-b from-transparent to-white relative z-10"></section>
-    
-    <!-- Second section -->
-    <section class="w-screen flex items-center justify-center bg-white relative py-32">
-        <div class="w-full md:w-[min(80vw,1000px)] mx-auto px-4 md:px-4 relative z-5">
-            <footer class="text-black">
-                <div class="grid md:grid-cols-3 gap-8 mb-8">
-                    <!-- Company Information -->
-                    <div>
-                        <h3 class="font-bold text-lg mb-4">Company</h3>
-                        <div class="space-y-2 text-sm">
-                            <p class="font-semibold">Heldcore GmbH</p>
-                            <p>Falkenried 32F</p>
-                            <p>20251 Hamburg</p>
-                            <p>Germany</p>
-                        </div>
-                    </div>
-                    
-                    <!-- Legal Links -->
-                    <div>
-                        <h3 class="font-bold text-lg mb-4">Legal</h3>
-                        <div class="space-y-2 text-sm">
-                            <a href="#" class="block hover:underline">Impressum</a>
-                            <a href="#" class="block hover:underline">Privacy Policy</a>
-                            <a href="#" class="block hover:underline">Terms of Service</a>
-                            <a href="#" class="block hover:underline">Cookie Policy</a>
-                        </div>
-                    </div>
-                    
-                    <!-- Contact -->
-                    <div>
-                        <h3 class="font-bold text-lg mb-4">Contact</h3>
-                        <div class="space-y-2 text-sm">
-                            <a href="mailto:info@heldcore.com" class="block hover:underline">info@heldcore.com</a>
-                            <a href="tel:+491736777934" class="block hover:underline">+49 (0) 173 124566777</a>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Bottom Bar -->
-                <div class="border-t border-gray-200 pt-6">
-                    <div class="flex flex-col md:flex-row justify-between items-center text-xs text-gray-600">
-                        <p>&copy; 2025 Heldcore GmbH. All rights reserved.</p>
-                        <div class="flex space-x-4 mt-2 md:mt-0">
-                            <span>Handelsregister: HRB 21610</span>
-                            <span>USt-IdNr.: DE341234567</span>
-                        </div>
-                    </div>
-                </div>
-            </footer>
-        </div>
-    </section>
-    
-    <script>
-        // Generic wave generation function
-        function generateWaves(config) {
-            const {
-                containerId,
-                imagePrefix,
-                imageCount,
-                scaleMin,
-                scaleMax,
-                distributionStrength = 2, // Controls curve: 1=linear gradient, 2=quadratic, 3+=very steep
-                gridCols,
-                gridRows,
-                jitterAmount = 0.1,
-                startY = 50, // Where waves start (50 = bottom half, 0 = full height)
-                heightPercent = 50, // Height coverage (50 = half, 100 = full)
-                filter = null,
-                opacity = 1
-            } = config;
-            
-            const container = document.getElementById(containerId);
-            const waveImages = Array.from({length: imageCount}, (_, i) => `priv/static/images/${imagePrefix}_${i + 1}.png`);
-            
-            // Create grid-based distribution to prevent overlapping
-            const cellWidth = 100 / gridCols;
-            const cellHeight = heightPercent / gridRows;
-            
-            // Row-by-row fill percentage based wave generation with checkers pattern
-            for (let row = 0; row < gridRows; row++) {
-                // Calculate fill percentage for this row (0 at top, 1 at bottom)
-                const rowRatio = row / (gridRows - 1);
-                const fillPercentage = Math.pow(rowRatio, distributionStrength);
-                
-                // Determine columns for checkers pattern
-                // Even rows: use even columns, Odd rows: use odd columns
-                const availableColumns = [];
-                for (let col = 0; col < gridCols; col++) {
-                    if ((row % 2 === 0 && col % 2 === 0) || (row % 2 === 1 && col % 2 === 1)) {
-                        availableColumns.push(col);
-                    }
-                }
-                
-                // Determine how many cells to fill in this row
-                const maxCellsInRow = availableColumns.length;
-                const cellsToFill = Math.round(maxCellsInRow * fillPercentage);
-                
-                // Shuffle available columns
-                for (let i = availableColumns.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [availableColumns[i], availableColumns[j]] = [availableColumns[j], availableColumns[i]];
-                }
-                
-                // Place waves in the first N columns (after shuffle)
-                for (let i = 0; i < cellsToFill; i++) {
-                    const col = availableColumns[i];
-                        const wave = document.createElement('img');
-                        const randomWave = waveImages[Math.floor(Math.random() * waveImages.length)];
-                        
-                        wave.src = randomWave;
-                        wave.className = 'absolute';
-                        wave.style.opacity = opacity;
-                        wave.style.width = Math.random() * (scaleMax - scaleMin) + scaleMin + 'px';
-                        if (filter) wave.style.filter = filter;
-                        
-                        // Calculate position with jitter
-                        const baseLeft = col * cellWidth + cellWidth / 2;
-                        const baseTop = row * cellHeight + cellHeight / 2;
-                        const jitterX = (Math.random() - 0.5) * cellWidth * jitterAmount * 2;
-                        const jitterY = (Math.random() - 0.5) * cellHeight * jitterAmount * 2;
-                        
-                        wave.style.left = baseLeft + jitterX + '%';
-                        wave.style.top = startY + baseTop + jitterY + '%';
-                        
-                        // Add parallax data
-                        const parallaxSpeed = Math.random() * 0.5 + 0.1;
-                        wave.dataset.parallaxSpeed = parallaxSpeed;
-                        
-                        container.appendChild(wave);
-                }
-            }
-        }
-        
-        // Create main waves
-        function createWaves() {
-            const isMobile = window.innerWidth < 768;
-            
-            // Background waves
-            generateWaves({
-                containerId: 'waves-background',
-                imagePrefix: 'wave',
-                imageCount: 6,
-                scaleMin: 30,
-                scaleMax: 60,
-                distributionStrength: 3, // 1=linear, 2=quadratic, 3+=very dramatic
-                gridCols: isMobile ? 10 : 20,
-                gridRows: isMobile ? 10 : 20,
-                jitterAmount: 0.1,
-                filter: 'hue-rotate(30deg)',
-                opacity: 1
-            });
-            
-            // White waves inside rectangle
-            generateWaves({
-                containerId: 'rectangle-waves',
-                imagePrefix: 'white_wave',
-                imageCount: 5,
-                scaleMin: 20,
-                scaleMax: 40,
-                distributionStrength: 4, // 1=linear, 2=quadratic, 3+=very dramatic
-                gridCols: isMobile ? 10 : 16,
-                gridRows: isMobile ? 10 : 16,
-                jitterAmount: 0.15,
-                startY: 0,
-                heightPercent: 100,
-                opacity: 1
-            });
-        }
-        
-        // Parallax scroll effect
-        function handleParallax() {
-            const scrollY = window.scrollY;
-            const waves = document.querySelectorAll('#waves-background img, #rectangle-waves img');
-            
-            waves.forEach(wave => {
-                const speed = parseFloat(wave.dataset.parallaxSpeed);
-                const movement = scrollY * speed;
-                wave.style.transform = `translateY(${movement}px)`;
-            });
-        }
-        
-        // Initialize waves on page load
-        document.addEventListener('DOMContentLoaded', createWaves);
-        
-        // Add parallax effect on scroll
-        window.addEventListener('scroll', handleParallax);
-        
-        // GSAP text animation
-        document.addEventListener('DOMContentLoaded', function() {
-            // Set initial states
-            gsap.set("#animated-text > span", {
-                opacity: 0,
-                y: 30,
-                rotationX: -90,
-                transformOrigin: "50% 50%"
-            });
-            
-            gsap.set(".underline-path", {
-                strokeDasharray: 100,
-                strokeDashoffset: 100
-            });
-            
-            gsap.set(".shape-sparkle", {
-                scale: 0,
-                rotation: -180,
-                display: "inline-block"
-            });
-            
-            gsap.set(".highlight-bar", {
-                scaleX: 0,
-                transformOrigin: "left center"
-            });
-            
-            gsap.set("#cta-button", {
-                scale: 0,
-                opacity: 0
-            });
-            
-            gsap.set("#spark-path-1", {
-                transformOrigin: "center center"
-            });
-            
-            gsap.set("#spark-path-2", {
-                transformOrigin: "center center"
-            });
-            
-            // Create timeline
-            const tl = gsap.timeline({
-                delay: 0.2,
-                defaults: { ease: "power3.out", duration: 0.4 }
-            });
-            
-            // Animate words in with different effects
-            tl.to("#animated-text > span", {
-                opacity: 1,
-                y: 0,
-                rotationX: 0,
-                stagger: {
-                    each: 0.02,
-                    from: "start"
-                }
-            })
-            // Animate the underline
-            .to(".underline-path", {
-                strokeDashoffset: 0,
-                duration: 0.3,
-                ease: "power2.inOut"
-            }, "-=0.2")
-            // Pop in the sparkle inline
-            .to(".shape-sparkle", {
-                scale: 1,
-                rotation: 0,
-                duration: 0.2,
-                ease: "back.out(3)"
-            }, "-=0.15")
-            // Slide in the highlight bar
-            .to(".highlight-bar", {
-                scaleX: 1,
-                duration: 0.2,
-                ease: "power2.out"
-            }, "-=0.1")
-            // Pop in the CTA button
-            .to("#cta-button", {
-                scale: 1,
-                opacity: 1,
-                duration: 0.3,
-                ease: "back.out(1.5)"
-            }, "-=0.1")
-            // Add jiggle effect after a small delay
-            .to("#cta-button", {
-                keyframes: [
-                    { rotation: -3, duration: 0.05 },
-                    { rotation: 3, duration: 0.05 },
-                    { rotation: -2, duration: 0.05 },
-                    { rotation: 2, duration: 0.05 },
-                    { rotation: 0, duration: 0.05 }
-                ],
-                ease: "power2.inOut"
-                         }, "+=0.1");
-            
-            // Add hover effects to colorful words
-            const colorfulWords = document.querySelectorAll("#animated-text span[class*='text-']");
-            colorfulWords.forEach(word => {
-                word.addEventListener('mouseenter', function() {
-                    gsap.to(this, {
-                        scale: 1.1,
-                        rotation: Math.random() * 10 - 5,
-                        duration: 0.15,
-                        ease: "power2.out"
-                    });
-                });
-                
-                word.addEventListener('mouseleave', function() {
-                    gsap.to(this, {
-                        scale: 1,
-                        rotation: 0,
-                        duration: 0.15,
-                        ease: "power2.out"
-                    });
-                });
-            });
-            
-            // Continuous sparkle animation
-            gsap.to(".shape-sparkle", {
-                rotation: 360,
-                duration: 20,
-                repeat: -1,
-                ease: "none"
-            });
-            
-                        // Add hover effects for CTA button
-            const ctaButton = document.getElementById('cta-button');
-            ctaButton.addEventListener('mouseenter', function() {
-                gsap.to("#spark-path-1", {
-                    scale: 1.1,
-                    rotation: 45,
-                    duration: 0.6,
-                    ease: "power2.out"
-                });
-                
-                gsap.to("#spark-path-2", {
-                    scale: 1.2,
-                    rotation: -30,
-                    duration: 0.6,
-                    ease: "power2.out"
-                });
-            });
-            
-            ctaButton.addEventListener('mouseleave', function() {
-                gsap.to("#spark-path-1", {
-                    scale: 1,
-                    rotation: 0,
-                    duration: 0.4,
-                    ease: "power2.out"
-                });
-                
-                gsap.to("#spark-path-2", {
-                    scale: 1,
-                    rotation: 0,
-                    duration: 0.4,
-                    ease: "power2.out"
-                });
-            });
-        });
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet">
+    <link phx-track-static rel="stylesheet" href="priv/static/assets/css/app.css">
+    <script defer phx-track-static type="text/javascript" src="priv/static/assets/js/static_app.js">
     </script>
+  </head>
+  <body data-theme="light">
+    <div id="phx-GKVKIFCb0-litAAF" data-phx-main data-phx-session="SFMyNTY.g2gDaAJhBnQAAAAIdwJpZG0AAAAUcGh4LUdLVktJRkNiMC1saXRBQUZ3B3Nlc3Npb250AAAAAHcKcGFyZW50X3BpZHcDbmlsdwR2aWV3dx9FbGl4aXIuSGVsZGNvcmVXZWIuSG9tZVBhZ2VMaXZldwhyb290X3BpZHcDbmlsdwZyb3V0ZXJ3GUVsaXhpci5IZWxkY29yZVdlYi5Sb3V0ZXJ3CXJvb3Rfdmlld3cfRWxpeGlyLkhlbGRjb3JlV2ViLkhvbWVQYWdlTGl2ZXcRbGl2ZV9zZXNzaW9uX25hbWV3B2RlZmF1bHRuBgBzTVB8nQFiAAFRgA.Bfs19B2SIeTf_qqvKW_Tt_IEqE1wIcFsq0DAqnjk5bg" data-phx-static="SFMyNTY.g2gDaAJhBnQAAAADdwJpZG0AAAAUcGh4LUdLVktJRkNiMC1saXRBQUZ3BWZsYXNodAAAAAB3CmFzc2lnbl9uZXdqbgYAeU1QfJ0BYgABUYA.AClAU47MHpia6Q4OEg4FBft-1nE0ZdvMUHm_U3H4ejo"><!-- <HeldcoreWeb.HomePageLive.render> lib/heldcore_web/live/home_page_live.ex:9 (heldcore) --><div class="font-['Geist',sans-serif] w-screen overflow-x-hidden">
+  <!-- Slide 1 -->
+  <section class="h-screen w-screen flex flex-col items-center justify-start pt-10 md:pt-24 bg-[#fff] relative">
+    <!-- Background waves layer -->
+    <div id="waves-background" class="absolute inset-0 z-0 pointer-events-none" phx-hook="WavesBackground"></div>
+
+    <div class="w-full md:w-[min(80vw,1000px)] mx-auto px-4 md:px-4 relative z-5">
+      <div class="max-w-2xl mx-auto flex flex-col items-center text-center gap-6 md:gap-8">
+        <!-- Logo -->
+        <div class="flex flex-col items-center">
+          <div id="logo-coral" class="w-40 h-40 md:w-48 md:h-48" phx-hook="GrowCoral" data-canvas-width="192" data-canvas-height="192" data-size="0.6" data-tapering="0.965" data-smoothness="0.7" data-weirdness="0.1" data-attractor-count="104" data-max-abs-angle="1.57" data-node-radius="9" data-segment-length="7" data-segment-scale="0.8" data-show-mask="false" data-strength="0.23" data-branch-shyness="0.5" data-fill-mode="true" data-source-x="0.5" data-source-y="0.95" data-gradient-colors='["#ff385d","#ff8093"]' data-show-skeleton="false" data-simplify-tolerance="0" data-vector-mask="false" data-controls="false" data-regen-on-click="true" data-texture="true" data-texture-strength="0.5">
+          </div>
+          <div class="text-xl md:text-3xl mt-2 md:mt-3 font-normal tracking-tight text-black">
+            HELDCORE
+          </div>
+        </div>
+
+        <!-- Title -->
+        <h1 class="mt-8 md:mt-24 text-4xl md:text-6xl font-bold uppercase text-gray-900 leading-tight z-10 px-4">
+          Automation Agency
+        </h1>
+
+        <!-- Tagline -->
+        <p class="-mt-2 md:-mt-4 text-gray-900 text-lg md:text-xl font-light max-w-xl px-6">
+          We help businesses to identify potentials for automation and provide custom-fit solutions to real-world problems.
+        </p>
+
+        <!-- CTA -->
+        <button type="button" onclick="document.getElementById('inquiry-dialog').showModal()" class="mt-6 md:mt-10 inline-flex items-center bg-gray-900 text-white border-4 border-white px-7 py-3 md:px-9 md:py-4 rounded-xl font-semibold text-base md:text-lg hover:bg-gray-800 transition-colors cursor-pointer">
+          Inquiry
+        </button>
+      </div>
+    </div>
+
+    <!-- Inquiry dialog -->
+    <dialog id="inquiry-dialog" class="fixed inset-0 m-auto rounded-2xl p-0 shadow-2xl w-[min(90vw,480px)] max-h-[90vh] backdrop:bg-black/40 backdrop:backdrop-blur-sm">
+      <form method="POST" action="https://formsubmit.co/moritzheld87@gmail.com" class="p-6 md:p-8 flex flex-col gap-4 font-['Geist',sans-serif]">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xl md:text-2xl font-bold text-gray-900">Inquiry</h2>
+          <button type="button" onclick="this.closest('dialog').close()" class="text-gray-400 hover:text-gray-900 text-2xl leading-none cursor-pointer" aria-label="Close">&times;</button>
+        </div>
+
+        <!-- FormSubmit config -->
+        <input type="hidden" name="_subject" value="New inquiry from heldcore.de">
+        <input type="text" name="_honey" class="hidden" tabindex="-1" autocomplete="off">
+
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-gray-700">Name</span>
+          <input type="text" name="name" required class="border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-gray-900">
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-gray-700">Email</span>
+          <input type="email" name="email" required class="border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-gray-900">
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-gray-700">Company</span>
+          <input type="text" name="company" class="border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-gray-900">
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-gray-700">What would you like to automate?</span>
+          <textarea name="message" rows="4" required class="border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"></textarea>
+        </label>
+
+        <div class="flex justify-end gap-2 mt-2">
+          <button type="button" onclick="this.closest('dialog').close()" class="px-4 py-2 text-gray-600 hover:text-gray-900 text-sm font-medium cursor-pointer">
+            Cancel
+          </button>
+          <button type="submit" class="bg-gray-900 text-white px-5 py-2 rounded-lg font-medium text-sm hover:bg-gray-800 cursor-pointer">
+            Send
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Bottom coral images -->
+    <div class="absolute bottom-0 left-0 right-0 flex justify-between items-end z-0 pointer-events-none">
+      <!-- Mobile: only show left and right corals -->
+      <img src="priv/static/images/coral_1.png" alt="Coral 1" class="h-40 md:h-[50vh] object-contain translate-y-12 md:translate-y-20 -translate-x-10 md:-translate-x-20">
+      <img src="priv/static/images/coral_2.png" alt="Coral 2" class="hidden md:block md:h-[50vh] object-contain md:translate-y-44 md:-translate-x-40">
+      <img src="priv/static/images/coral_3.png" alt="Coral 3" class="h-44 md:h-[60vh] object-contain translate-y-12 md:translate-y-32 translate-x-10 md:-translate-x-20">
+<div class="corals-grower mx-auto hidden">
+	<div id="coral-1" class="w-[260px] h-[500px] -translate-y-[600px]" phx-hook="GrowCoral" data-canvas-width="256" data-canvas-height="458" data-size="0.6" data-tapering="0.96" data-smoothness="0.7" data-weirdness="0.1" data-attractor-count="104" data-max-abs-angle="1.57" data-node-radius="10" data-segment-length="18" data-segment-scale="0.8" data-show-mask="true" data-strength="0.23" data-branch-shyness="0.1" data-fill-mode="true" data-source-x="0.5" data-source-y="0.95" data-gradient-colors='["#ff385d","#ff8093"]' data-show-skeleton="false" data-simplify-tolerance="0" data-vector-mask="false" data-texture="true" data-texture-strength="0.5" data-controls="false">
+          </div>
+</div>
+
+    </div>
+
+    <!-- Coral growth canvas -->
     
-</body>
-</html>
+
+  </section>
+
+  <!-- White gradient section -->
+  <div class="h-[100px] w-screen relative">
+    <div class="absolute top-0 left-0 right-0 bottom-0 pointer-events-none z-10 bg-gradient-to-t from-white to-white/0"></div>
+  </div>
+
+  <!-- Second section -->
+  <section class="w-screen flex items-center justify-center bg-[#fff] relative py-32 bg-[#fff] z-10">
+    <div class="w-full md:w-[min(80vw,1000px)] mx-auto px-4 md:px-4 relative z-5">
+      <footer class="text-black">
+        <div class="grid md:grid-cols-3 gap-8 mb-8">
+          <!-- Company Information -->
+          <div>
+            <h3 class="font-bold text-lg mb-4">Company</h3>
+            <div class="space-y-2 text-sm">
+              <p class="font-semibold">Heldcore GmbH</p>
+              <p>Falkenried 32F</p>
+              <p>20251 Hamburg</p>
+              <p>Germany</p>
+            </div>
+          </div>
+
+          <!-- Legal Links -->
+          <div>
+            <h3 class="font-bold text-lg mb-4">Legal</h3>
+            <div class="space-y-2 text-sm">
+              <a href="impressum.html" class="block hover:underline">Impressum</a>
+              <a href="#" class="block hover:underline">Privacy Policy</a>
+              <a href="#" class="block hover:underline">Terms of Service</a>
+              <a href="#" class="block hover:underline">Cookie Policy</a>
+            </div>
+          </div>
+
+          <!-- Contact -->
+          <div>
+            <h3 class="font-bold text-lg mb-4">Contact</h3>
+            <div class="space-y-2 text-sm">
+              <a href="mailto:info@heldcore.com" class="block hover:underline">info@heldcore.com</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Bar -->
+        <div class="border-t border-gray-200 pt-6">
+          <div class="flex flex-col md:flex-row justify-between items-center text-xs text-gray-600">
+            <p>&copy; 2025 Heldcore GmbH. All rights reserved.</p>
+            <div class="flex space-x-4 mt-2 md:mt-0">
+              <span>Handelsregister: HRB 21610</span>
+              <span>USt-IdNr.: DE341234567</span>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </section>
+
+          <!-- Parallax scroll hook -->
+    <div id="parallax-handler" phx-hook="ParallaxHandler" class="hidden"></div>
+  </div><!-- </HeldcoreWeb.HomePageLive.render> --></div>
+  </body>
+</html><!-- </HeldcoreWeb.Layouts.root> -->

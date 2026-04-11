@@ -244,24 +244,69 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
   const KILL_DIST = baseSTEP + 2;
 
 
-  // Helper: Paint a segment directly to mask canvas (optimization #1)
-  const paintSegmentToMask = (segmentPath, branchIndex) => {
-    const pathData = segmentPath.exportSVG({ asString: true });
-    const domPath = new Path2D(pathData.match(/d="([^"]+)"/)?.[1] || "");
-    maskCtx.fill(domPath);
-    
-    // Also update branchId buffer for this segment's area (optimization #2)
-    const bounds = segmentPath.bounds;
-    const startX = Math.max(0, Math.floor(bounds.left));
-    const endX = Math.min(w - 1, Math.ceil(bounds.right));
-    const startY = Math.max(0, Math.floor(bounds.top));
-    const endY = Math.min(h - 1, Math.ceil(bounds.bottom));
-    
+  // Fast rasterization helpers — avoid paper.js exportSVG and per-pixel contains().
+  // Branch paths never need per-pixel branch IDs: renderFastGradient only checks
+  // branchIdBuffer[i] !== 0 (inside-coral test) and then uses the spatial grid to
+  // find nearby branches. So in raster mode we only mark insideness; in vectorMask
+  // mode we fill maskCanvas (used as a compositing mask during animation) and skip
+  // the buffer entirely.
+  const paintCircle = (cx, cy, r) => {
+    if (vectorMask) {
+      maskCtx.beginPath();
+      maskCtx.arc(cx, cy, r, 0, Math.PI * 2);
+      maskCtx.fill();
+      return;
+    }
+    const startX = Math.max(0, Math.floor(cx - r));
+    const endX = Math.min(w - 1, Math.ceil(cx + r));
+    const startY = Math.max(0, Math.floor(cy - r));
+    const endY = Math.min(h - 1, Math.ceil(cy + r));
+    const r2 = r * r;
     for (let y = startY; y <= endY; y++) {
+      const dy = y + 0.5 - cy;
+      const dy2 = dy * dy;
+      const rowStart = y * w;
       for (let x = startX; x <= endX; x++) {
-        const pt = new paperScope.Point(x + 0.5, y + 0.5);
-        if (segmentPath.contains(pt)) {
-          branchIdBuffer[y * w + x] = branchIndex;
+        const dx = x + 0.5 - cx;
+        if (dx * dx + dy2 <= r2) {
+          branchIdBuffer[rowStart + x] = 1;
+        }
+      }
+    }
+  };
+
+  const paintQuad = (p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y) => {
+    if (vectorMask) {
+      maskCtx.beginPath();
+      maskCtx.moveTo(p0x, p0y);
+      maskCtx.lineTo(p1x, p1y);
+      maskCtx.lineTo(p2x, p2y);
+      maskCtx.lineTo(p3x, p3y);
+      maskCtx.closePath();
+      maskCtx.fill();
+      return;
+    }
+    const minX = Math.max(0, Math.floor(Math.min(p0x, p1x, p2x, p3x)));
+    const maxX = Math.min(w - 1, Math.ceil(Math.max(p0x, p1x, p2x, p3x)));
+    const minY = Math.max(0, Math.floor(Math.min(p0y, p1y, p2y, p3y)));
+    const maxY = Math.min(h - 1, Math.ceil(Math.max(p0y, p1y, p2y, p3y)));
+    // Convex-polygon test via consistent-sign cross products on each edge.
+    const e01x = p1x - p0x, e01y = p1y - p0y;
+    const e12x = p2x - p1x, e12y = p2y - p1y;
+    const e23x = p3x - p2x, e23y = p3y - p2y;
+    const e30x = p0x - p3x, e30y = p0y - p3y;
+    for (let y = minY; y <= maxY; y++) {
+      const py = y + 0.5;
+      const rowStart = y * w;
+      for (let x = minX; x <= maxX; x++) {
+        const px = x + 0.5;
+        const c0 = e01x * (py - p0y) - e01y * (px - p0x);
+        const c1 = e12x * (py - p1y) - e12y * (px - p1x);
+        const c2 = e23x * (py - p2y) - e23y * (px - p2x);
+        const c3 = e30x * (py - p3y) - e30y * (px - p3x);
+        if ((c0 >= 0 && c1 >= 0 && c2 >= 0 && c3 >= 0) ||
+            (c0 <= 0 && c1 <= 0 && c2 <= 0 && c3 <= 0)) {
+          branchIdBuffer[rowStart + x] = 1;
         }
       }
     }
@@ -357,54 +402,70 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
       const segAngle = Math.acos(segDir.normalize().dot(up));
       if (!fillMode && segAngle > maxAbsAngle) return;
 
-             const parentBranch = branches[idx];
-       parentBranch.children += 1;
-       const newLevel = parentBranch.level + 1;
+      const parentBranch = branches[idx];
+      parentBranch.children += 1;
+      const newLevel = parentBranch.level + 1;
       const lengthFromRoot = parentBranch.lengthFromRoot + stepLen;
       const newBranch = { point: to, parent: parentBranch, level: newLevel, children: 0, creationTime: creationCounter++, lengthFromRoot };
       maxRootLength = Math.max(maxRootLength, lengthFromRoot);
       branches.push(newBranch);
-      addBranchToGrid(branches.length - 1, to); // Add new branch to spatial grid
+      addBranchToGrid(branches.length - 1, to);
       createdCount++;
-       grown = true;
-              const sizeFrom = Math.max(1, nodeRadius * Math.pow(tapering, parentBranch.level));
-       const sizeTo = Math.max(1, nodeRadius * Math.pow(tapering, newLevel));
+      grown = true;
+      const sizeFrom = Math.max(1, nodeRadius * Math.pow(tapering, parentBranch.level));
+      const sizeTo = Math.max(1, nodeRadius * Math.pow(tapering, newLevel));
 
-      // Paint junction node when branching directly to mask canvas
-      if (parentBranch.children === 2 || parentBranch.level === 0) {
-        const parentNodeShape = new paperScope.Path.Circle({ center: from, radius: sizeFrom, fillColor: new paperScope.Color(0,0,0,0) });
-        parentNodeShape.meta = { branchIndex: idx };
-        paintSegmentToMask(parentNodeShape, idx);
-        segments.push(parentNodeShape); // Still keep for skeleton reference
+      // Compute the segment's orthogonal cross-section once, using plain math
+      // to avoid paper.js Point allocations on the hot path.
+      const segDx = to.x - from.x;
+      const segDy = to.y - from.y;
+      const segLen = Math.sqrt(segDx * segDx + segDy * segDy) || 1;
+      const nx = -segDy / segLen;
+      const ny = segDx / segLen;
+      const halfW1 = sizeFrom * segmentScale;
+      const halfW2 = sizeTo * segmentScale;
+      const q0x = from.x + nx * halfW1, q0y = from.y + ny * halfW1;
+      const q1x = from.x - nx * halfW1, q1y = from.y - ny * halfW1;
+      const q2x = to.x - nx * halfW2,   q2y = to.y - ny * halfW2;
+      const q3x = to.x + nx * halfW2,   q3y = to.y + ny * halfW2;
+      const connectorRadius = Math.max(halfW1, halfW2);
+      const needJunctionCap = parentBranch.children === 2 || parentBranch.level === 0;
+
+      // Junction cap
+      if (needJunctionCap) {
+        paintCircle(from.x, from.y, sizeFrom);
       }
+      // Segment quad
+      paintQuad(q0x, q0y, q1x, q1y, q2x, q2y, q3x, q3y);
+      // Connector circle (rounded cap at the parent end of the segment)
+      paintCircle(from.x, from.y, connectorRadius);
 
-      // Paint segment shape directly to mask canvas
-      // Compute segment cross-section offsets
-      const normal = segDir.normalize().rotate(90);
-      const w1 = sizeFrom * 2 * segmentScale;
-      const w2 = sizeTo * 2 * segmentScale;
-      const segShape = new paperScope.Path({
-        segments: [
-          from.add(normal.multiply(w1 / 2)),
-          from.subtract(normal.multiply(w1 / 2)),
-          to.subtract(normal.multiply(w2 / 2)),
-          to.add(normal.multiply(w2 / 2)),
-        ],
-        closed: true,
-        fillColor: new paperScope.Color(0,0,0,0),
-      });
-      segShape.meta = { branchIndex: branches.length - 1 };
-      paintSegmentToMask(segShape, branches.length - 1);
-      segments.push(segShape); // Still keep for skeleton reference
-    
-      // Paint connector circle directly to mask canvas
-      const connectorRadius = Math.max(w1, w2) * 0.5;
-      const connector = new paperScope.Path.Circle({ center: from, radius: connectorRadius, fillColor: new paperScope.Color(0,0,0,0) });
-      connector.meta = { branchIndex: branches.length - 1 };
-      paintSegmentToMask(connector, branches.length - 1);
-      segments.push(connector); // Still keep for skeleton reference
-
-
+      // Paper.js path objects are only needed when vectorMask is true — they feed
+      // the final hierarchical unite and smoothing pass. Skip them otherwise.
+      if (vectorMask) {
+        if (needJunctionCap) {
+          segments.push(new paperScope.Path.Circle({
+            center: from,
+            radius: sizeFrom,
+            fillColor: new paperScope.Color(0, 0, 0, 0),
+          }));
+        }
+        segments.push(new paperScope.Path({
+          segments: [
+            new paperScope.Point(q0x, q0y),
+            new paperScope.Point(q1x, q1y),
+            new paperScope.Point(q2x, q2y),
+            new paperScope.Point(q3x, q3y),
+          ],
+          closed: true,
+          fillColor: new paperScope.Color(0, 0, 0, 0),
+        }));
+        segments.push(new paperScope.Path.Circle({
+          center: from,
+          radius: connectorRadius,
+          fillColor: new paperScope.Color(0, 0, 0, 0),
+        }));
+      }
     });
 
 
@@ -425,10 +486,10 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
       const nodesEnd = performance.now();
       console.log(`Final nodes: ${(nodesEnd - nodesStart).toFixed(2)}ms`);
       
-      // OPTIMIZATION: Skip expensive unite operations for pixel-only rendering
-      // The mask is already built incrementally via paintSegmentToMask
-      // EXCEPT when vectorMask is enabled - then we need a unified path to smooth
-      const SKIP_UNITE = !vectorMask; // Only unite for vector mask mode
+      // Skip expensive unite operations for pixel-only rendering — the mask is
+      // built incrementally via paintCircle/paintQuad. Unite only when vectorMask
+      // is enabled (we need a unified path to smooth).
+      const SKIP_UNITE = !vectorMask;
       
       if (!SKIP_UNITE && segments.length > 1) {
         // Hierarchical merge for O(n log n) performance instead of O(n²)
@@ -537,14 +598,25 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     return false;
   };
 
+  // drawNodes gets called from two places: inside iterate() when growth finishes
+  // naturally (needed before the unite step so tip caps are in smoothedMaskPath),
+  // and from the outer finish block (needed when the frame-limit path aborts
+  // iterate before !grown runs). The flag collapses them so we never double-paint.
+  let nodesDrawn = false;
   const drawNodes = () => {
-    branches.forEach((b, idx) => {
+    if (nodesDrawn) return;
+    nodesDrawn = true;
+    branches.forEach(b => {
       if (b.children === 0) {
         const size = Math.max(1, nodeRadius * Math.pow(tapering, b.level));
-        const tipDot = new paperScope.Path.Circle({ center: b.point, radius: size, fillColor: new paperScope.Color(0,0,0,0) });
-        tipDot.meta = { branchIndex: idx };
-        paintSegmentToMask(tipDot, idx);
-        segments.push(tipDot); // Still keep for skeleton reference
+        paintCircle(b.point.x, b.point.y, size);
+        if (vectorMask) {
+          segments.push(new paperScope.Path.Circle({
+            center: b.point,
+            radius: size,
+            fillColor: new paperScope.Color(0, 0, 0, 0),
+          }));
+        }
       }
     });
     paperScope.view.update();
@@ -615,7 +687,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
             const checkX = (bx + dx) * SCALE + SCALE / 2;
             const checkY = (by + dy) * SCALE + SCALE / 2;
             const checkIdx = Math.floor(checkY) * w + Math.floor(checkX);
-            if (checkIdx < branchIdBuffer.length && branchIdBuffer[checkIdx] !== 0xFFFF) {
+            if (checkIdx < branchIdBuffer.length && branchIdBuffer[checkIdx] !== 0) {
               blockHasContent = true;
             }
           }
@@ -632,7 +704,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
             const y = ly * SCALE + SCALE / 2;
             
             const bufferIdx = Math.floor(y) * w + Math.floor(x);
-            if (bufferIdx < branchIdBuffer.length && branchIdBuffer[bufferIdx] !== 0xFFFF) {
+            if (bufferIdx < branchIdBuffer.length && branchIdBuffer[bufferIdx] !== 0) {
               // Use spatial grid to find nearby branches (aggressive optimization)
               const searchRadius = 60; // Further reduced for speed
               const pt = new paperScope.Point(x, y); // Still needed for getNearbyBranches
@@ -678,6 +750,125 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     ctx.restore();
   };
 
+  // Highlight pass: render the branch skeleton (lines from each branch to its
+  // parent + dots at every node) in HIGHLIGHT_COLOR, soft-blur it, scatter noise
+  // across opaque pixels, then composite back onto the coral with source-atop so
+  // the effect stays clipped to the silhouette. Runs after the gradient render
+  // and before the texture pass — this preserves the gradient base and overlays
+  // a glowing skeletal pattern that follows the branching structure.
+  const HIGHLIGHT_COLOR = '#ffa074';
+  const HIGHLIGHT_BLUR_PX = 1.5;
+  const HIGHLIGHT_NOISE_AMP = 75;
+  const HIGHLIGHT_ALPHA = 0.85;
+  const HIGHLIGHT_LINE_WIDTH = 1.5;
+  const HIGHLIGHT_NODE_RADIUS = 1.5;
+  const applyHighlight = () => {
+    if (branches.length < 2) return;
+    const highlightStart = performance.now();
+    const canvas = paperScope.view.element;
+    const ctx = canvas.getContext('2d');
+
+    // Draw skeleton onto a temp canvas using plain canvas2D — no paper.js needed.
+    const skelCanvas = document.createElement('canvas');
+    skelCanvas.width = canvas.width;
+    skelCanvas.height = canvas.height;
+    const skelCtx = skelCanvas.getContext('2d');
+    skelCtx.strokeStyle = HIGHLIGHT_COLOR;
+    skelCtx.fillStyle = HIGHLIGHT_COLOR;
+    skelCtx.lineWidth = HIGHLIGHT_LINE_WIDTH;
+    skelCtx.lineCap = 'round';
+    skelCtx.lineJoin = 'round';
+
+    skelCtx.beginPath();
+    for (const b of branches) {
+      if (b.parent) {
+        skelCtx.moveTo(b.parent.point.x, b.parent.point.y);
+        skelCtx.lineTo(b.point.x, b.point.y);
+      }
+    }
+    skelCtx.stroke();
+
+    for (const b of branches) {
+      skelCtx.beginPath();
+      skelCtx.arc(b.point.x, b.point.y, HIGHLIGHT_NODE_RADIUS, 0, Math.PI * 2);
+      skelCtx.fill();
+    }
+
+    // Blur into a second canvas (canvas2D's `filter` only applies to draws, not
+    // in-place to existing pixels — so we need a fresh target).
+    const blurCanvas = document.createElement('canvas');
+    blurCanvas.width = canvas.width;
+    blurCanvas.height = canvas.height;
+    const blurCtx = blurCanvas.getContext('2d');
+    blurCtx.filter = `blur(${HIGHLIGHT_BLUR_PX}px)`;
+    blurCtx.drawImage(skelCanvas, 0, 0);
+    blurCtx.filter = 'none';
+
+    // Scatter per-pixel noise on opaque pixels only.
+    const imgData = blurCtx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] === 0) continue;
+      const n = (Math.random() - 0.5) * HIGHLIGHT_NOISE_AMP;
+      const r = data[i] + n;
+      const g = data[i + 1] + n;
+      const b = data[i + 2] + n;
+      data[i]     = r < 0 ? 0 : r > 255 ? 255 : r;
+      data[i + 1] = g < 0 ? 0 : g > 255 ? 255 : g;
+      data[i + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
+    }
+    blurCtx.putImageData(imgData, 0, 0);
+
+    // Composite onto the main canvas, clipped to the existing coral pixels so the
+    // soft-blur halo doesn't bleed past the original silhouette.
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.globalAlpha = HIGHLIGHT_ALPHA;
+    ctx.drawImage(blurCanvas, 0, 0);
+    ctx.restore();
+    console.log(`Highlight apply: ${(performance.now() - highlightStart).toFixed(2)}ms`);
+  };
+
+  // Composite the texture onto the coral shape. Extracted so both animate and
+  // sync paths share one implementation (and one timing path).
+  const applyTexture = () => {
+    if (!(texture && textureStrength > 0 && textureImage)) return;
+    const textureStart = performance.now();
+    const canvas = paperScope.view.element;
+    const ctx = canvas.getContext('2d');
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext('2d');
+
+    tempCtx.drawImage(canvas, 0, 0);
+
+    tempCtx.save();
+    tempCtx.globalAlpha = textureStrength;
+    tempCtx.globalCompositeOperation = TEXTURE_BLEND_MODE;
+    if (TEXTURE_SCALE <= 1) {
+      const pattern = tempCtx.createPattern(textureImage, 'repeat');
+      const matrix = new DOMMatrix().scale(TEXTURE_SCALE, TEXTURE_SCALE);
+      pattern.setTransform(matrix);
+      tempCtx.fillStyle = pattern;
+      tempCtx.fillRect(0, 0, canvas.width, canvas.height);
+    } else {
+      tempCtx.drawImage(textureImage, 0, 0, canvas.width * TEXTURE_SCALE, canvas.height * TEXTURE_SCALE);
+    }
+    tempCtx.restore();
+
+    // Reset Paper.js's devicePixelRatio transform so the backing-store-sized
+    // tempCanvas maps 1:1 to ctx (fixes HiDPI misalignment).
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.drawImage(tempCanvas, 0, 0);
+    ctx.restore();
+    console.log(`Texture apply: ${(performance.now() - textureStart).toFixed(2)}ms`);
+  };
+
   if (animate) {
     let raster = null;
     let frameCount = 0;
@@ -696,7 +887,9 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
       totalIterationTime += (iterEnd - iterStart);
       
       // Render gradient on each frame (animated growth) - OPTIMIZED
-      if (segments.length > 0) {
+      // `branches.length > 1` is the growth signal in both vectorMask and raster
+      // modes; the paper-level `segments` array is now only populated in vector mode.
+      if (branches.length > 1) {
         // Remove old raster if exists
         if (raster) raster.remove();
         
@@ -755,55 +948,8 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
         console.log(`Skeleton drawing: ${(skeletonEnd - skeletonStart).toFixed(2)}ms`);
         
         paperScope.view.update();
-        
-        // Apply texture after animation is complete
-        if (texture && textureStrength > 0 && textureImage) {
-          setTimeout(() => {
-            const canvas = paperScope.view.element;
-            const ctx = canvas.getContext('2d');
-            
-            // Create a temporary canvas with just the coral shape
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = canvas.width;
-            tempCanvas.height = canvas.height;
-            const tempCtx = tempCanvas.getContext('2d');
-            
-            // Copy current coral to temp canvas
-            tempCtx.drawImage(canvas, 0, 0);
-            
-            // Apply texture to temp canvas
-            tempCtx.save();
-            tempCtx.globalAlpha = textureStrength;
-            tempCtx.globalCompositeOperation = TEXTURE_BLEND_MODE;
-            
-            // Scale texture based on TEXTURE_SCALE constant
-            const scaledW = canvas.width * TEXTURE_SCALE;
-            const scaledH = canvas.height * TEXTURE_SCALE;
-            
-            // If scaling down, create tiled pattern
-            if (TEXTURE_SCALE <= 1) {
-              const pattern = tempCtx.createPattern(textureImage, 'repeat');
-              const matrix = new DOMMatrix().scale(TEXTURE_SCALE, TEXTURE_SCALE);
-              pattern.setTransform(matrix);
-              tempCtx.fillStyle = pattern;
-              tempCtx.fillRect(0, 0, canvas.width, canvas.height);
-            } else {
-              // If scaling up, just stretch the texture
-              tempCtx.drawImage(textureImage, 0, 0, scaledW, scaledH);
-            }
-            tempCtx.restore();
-            
-            // Clear the original canvas and redraw only the textured coral
-            // Reset the devicePixelRatio transform that Paper.js applied so
-            // the backing-store-sized tempCanvas maps 1:1 to ctx (otherwise
-            // the texture is drawn 2x too large on HiDPI displays).
-            ctx.save();
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.globalCompositeOperation = 'source-atop';
-            ctx.drawImage(tempCanvas, 0, 0);
-            ctx.restore();
-          }, 100);
-        }
+        applyHighlight();
+        applyTexture();
       }
     };
   } else {
@@ -825,10 +971,10 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     console.log(`Tip nodes drawing: ${(nodesEnd - nodesStart).toFixed(2)}ms`);
 
     // Build union mask from all segments - OPTIMIZED
-    if (segments.length > 0) {
+    if (branches.length > 1) {
       // Benchmark: Fast mask building (no expensive operations!)
       maskStart = performance.now();
-      // Mask is already built incrementally by paintSegmentToMask calls
+      // Mask is already built incrementally by paintCircle/paintQuad calls
       maskEnd = performance.now();
       console.log(`Mask building: ${(maskEnd - maskStart).toFixed(2)}ms`);
       
@@ -860,58 +1006,12 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     const skeletonEnd = performance.now();
     console.log(`Skeleton drawing: ${(skeletonEnd - skeletonStart).toFixed(2)}ms`);
     
-    const totalTime = (iterEnd - iterStart) + (nodesEnd - nodesStart) + (segments.length > 0 ? (maskEnd - maskStart) + (renderEnd - renderStart) : 0) + (skeletonEnd - skeletonStart);
+    const totalTime = (iterEnd - iterStart) + (nodesEnd - nodesStart) + (branches.length > 1 ? (maskEnd - maskStart) + (renderEnd - renderStart) : 0) + (skeletonEnd - skeletonStart);
     console.log(`Total time: ${totalTime.toFixed(2)}ms`);
     
     paperScope.view.update();
-    
-    // Apply texture for synchronous rendering
-    if (texture && textureStrength > 0 && textureImage) {
-      setTimeout(() => {
-        const canvas = paperScope.view.element;
-        const ctx = canvas.getContext('2d');
-        
-        // Create a temporary canvas with just the coral shape
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = canvas.width;
-        tempCanvas.height = canvas.height;
-        const tempCtx = tempCanvas.getContext('2d');
-        
-        // Copy current coral to temp canvas
-        tempCtx.drawImage(canvas, 0, 0);
-        
-        // Apply texture to temp canvas
-        tempCtx.save();
-        tempCtx.globalAlpha = textureStrength;
-        tempCtx.globalCompositeOperation = TEXTURE_BLEND_MODE;
-        
-        // Scale texture based on TEXTURE_SCALE constant
-        const scaledW = canvas.width * TEXTURE_SCALE;
-        const scaledH = canvas.height * TEXTURE_SCALE;
-        
-        // If scaling down, create tiled pattern
-        if (TEXTURE_SCALE <= 1) {
-          const pattern = tempCtx.createPattern(textureImage, 'repeat');
-          const matrix = new DOMMatrix().scale(TEXTURE_SCALE, TEXTURE_SCALE);
-          pattern.setTransform(matrix);
-          tempCtx.fillStyle = pattern;
-          tempCtx.fillRect(0, 0, canvas.width, canvas.height);
-        } else {
-          // If scaling up, just stretch the texture
-          tempCtx.drawImage(textureImage, 0, 0, scaledW, scaledH);
-        }
-        tempCtx.restore();
-        
-        // Clear the original canvas and redraw only the textured coral
-        // Reset Paper.js's devicePixelRatio transform so the backing-store-
-        // sized tempCanvas maps 1:1 to ctx (fixes HiDPI misalignment).
-        ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.globalCompositeOperation = 'source-atop';
-        ctx.drawImage(tempCanvas, 0, 0);
-        ctx.restore();
-      }, 50);
-    }
+    applyHighlight();
+    applyTexture();
   }
 };
 

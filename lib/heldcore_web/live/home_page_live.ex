@@ -38,7 +38,7 @@ defmodule HeldcoreWeb.HomePageLive do
 				data-fill-mode="true"
 				data-source-x="0.5"
 				data-source-y="0.95"
-				data-gradient-colors='["#ff385d","#ff8093"]'
+				data-gradient-colors='["#da141d","#f5744c"]'
 				data-show-skeleton="false"
 				data-simplify-tolerance="0"
 				data-vector-mask="false"
@@ -183,7 +183,7 @@ defmodule HeldcoreWeb.HomePageLive do
 				data-fill-mode="true"
 				data-source-x="0.5"
 				data-source-y="0.95"
-				data-gradient-colors='["#ff385d","#ff8093"]'
+				data-gradient-colors='["#da141d","#f5744c"]'
 				data-show-skeleton="false"
 				data-simplify-tolerance="0"
 				data-vector-mask="false"

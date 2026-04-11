@@ -1,5 +1,9 @@
 import paper from "paper";
 
+// --- Texture Configuration ---
+const TEXTURE_SCALE = 5.0; // Controls texture size: 1 = original, 0.5 = smaller (more repetitions), 2 = larger
+const TEXTURE_BLEND_MODE = 'color-dodge'; // Blend mode for texture: 'overlay', 'multiply', 'soft-light', 'hard-light', etc.
+
 // --- Gradient helpers ---
 const interp = (a,b,f) => a + f*(b-a);
 const colorLerp = (c0,c1,f) => new paper.Color(
@@ -8,7 +12,7 @@ const colorLerp = (c0,c1,f) => new paper.Color(
   interp(c0.blue,c1.blue,f),
   interp(c0.alpha,c1.alpha,f)
 );
-const makeStops = arr => arr.map(c=>new paper.Color(c));
+const makeStops = (arr, paperScope = paper) => arr.map(c=>new paperScope.Color(c));
 const sampleStops = (stops,t)=>{
   const idx=t*(stops.length-1);
   const lo=Math.floor(idx);
@@ -56,15 +60,17 @@ function renderRaster(ctx,w,h,mask,branches,maxDepth,stops){
 }
 
 // Utility: create a full-size canvas inside the given parent element
-const createCanvas = parent => {
+const createCanvas = (parent, explicitWidth = null, explicitHeight = null) => {
   const canvas = document.createElement("canvas");
   canvas.style.width = "100%";
   canvas.style.height = "100%";
   parent.appendChild(canvas);
 
   // Set internal resolution so paper.js has the right dimensions
-  canvas.width = parent.clientWidth;
-  canvas.height = parent.clientHeight;
+  // Use explicit dimensions if provided, otherwise use parent's computed dimensions
+  const rect = parent.getBoundingClientRect();
+  canvas.width = explicitWidth || Math.max(rect.width, parent.clientWidth, 48);
+  canvas.height = explicitHeight || Math.max(rect.height, parent.clientHeight, 48);
 
   return canvas;
 };
@@ -82,41 +88,55 @@ const drawDot = (x, y, radius = 6, color = "red") => {
 };
 
 // Draw translucent blue mask circle with lowest point at bottom center
-const drawMask = ({ size = 0.3, strength = 0.1 } = {}) => {
-  const { width: w, height: h } = paper.view.size;
-  const diameter = Math.min(w, h) - 20;
+const drawMask = ({ size = 0.3, strength = 0.1 }, paperScope = paper) => {
+  const { width: w, height: h } = paperScope.view.size;
+  
+  // Scale mask to use more of the canvas space
+  // When size = 1, use the full diagonal; when size = 0.1, use a smaller portion
+  const maxDimension = Math.sqrt(w * w + h * h); // Diagonal length
+  const minDimension = Math.min(w, h) - 20;
+  
+  // Interpolate between min dimension and max dimension based on size
+  const diameter = minDimension + (maxDimension - minDimension) * size;
   const baseRadius = diameter / 2;
-  const center = new paper.Point(w / 2, h - baseRadius - 6);
+  
+  // Center the mask but keep bottom touching the canvas bottom
+  const center = new paperScope.Point(w / 2, h - Math.min(baseRadius, h * 0.8));
 
   // Build a wavy circle using random radial offsets
-  const segments = Math.max(12, Math.round(32 * size));
-  const path = new paper.Path({ closed: true, fillColor: new paper.Color(0, 0, 1, 0.1) });
+  const segments = Math.max(12, Math.round(32 * Math.max(size, 0.3))); // More segments for larger masks
+  const path = new paperScope.Path({ closed: true, fillColor: new paperScope.Color(0, 0, 1, 0.1) });
   for (let i = 0; i < segments; i += 1) {
     const theta = (Math.PI * 2 * i) / segments;
     const offset = (Math.random() * 2 - 1) * baseRadius * strength;
     const r = baseRadius + offset;
-    path.add(new paper.Point(center.x + r * Math.cos(theta), center.y + r * Math.sin(theta)));
+    
+    // Ensure the mask doesn't go outside canvas bounds
+    const x = Math.max(0, Math.min(w, center.x + r * Math.cos(theta)));
+    const y = Math.max(0, Math.min(h, center.y + r * Math.sin(theta)));
+    
+    path.add(new paperScope.Point(x, y));
   }
   path.smooth();
 
   
-  paper.view.update();
+  paperScope.view.update();
   return path;
 };
 
 // Draw custom mask from user-drawn points
-const drawCustomMask = (points) => {
-  const path = new paper.Path({ 
+const drawCustomMask = (points, paperScope = paper) => {
+  const path = new paperScope.Path({ 
     closed: true, 
-    fillColor: new paper.Color(0, 0, 1, 0.1),
-    strokeColor: new paper.Color(0, 0, 1, 0.3),
+    fillColor: new paperScope.Color(0, 0, 1, 0.1),
+    strokeColor: new paperScope.Color(0, 0, 1, 0.3),
     strokeWidth: 2
   });
   
-  points.forEach(([x, y]) => path.add(new paper.Point(x, y)));
+  points.forEach(([x, y]) => path.add(new paperScope.Point(x, y)));
   path.smooth();
   
-  paper.view.update();
+  paperScope.view.update();
   return path;
 };
 
@@ -126,8 +146,8 @@ const drawCustomMask = (points) => {
  *  – animate       : if true, iterate on every frame
  *  – attractorCount: number of seed (attractor) points inside the mask
  */
-const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = Math.PI / 2, fillMode = false, segmentLength = 13, nodeRadius = 5, tapering = 0.96, segmentScale = 0.7, replenishAttractors = true, simplifyTolerance = 5, smoothness = 0.5, weirdness = 0, branchShyness = 1, sourceX = 0.5, sourceY = 1, gradientColors = ["black","red","#fff"], showSkeleton = true, vectorMask = true } = {}) => {
-  const { width: w, height: h } = paper.view.size;
+const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = Math.PI / 2, fillMode = false, segmentLength = 13, nodeRadius = 5, tapering = 0.96, segmentScale = 0.7, replenishAttractors = true, simplifyTolerance = 5, smoothness = 0.5, weirdness = 0, branchShyness = 1, sourceX = 0.5, sourceY = 1, gradientColors = ["black","red","#fff"], showSkeleton = true, vectorMask = true, texture = false, textureStrength = 1, textureImage = null, paperScope = paper } = {}) => {
+  const { width: w, height: h } = paperScope.view.size;
   
   // Create off-screen canvas for incremental mask painting (optimization #1)
   const maskCanvas = document.createElement("canvas");
@@ -136,9 +156,9 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
   const maskCtx = maskCanvas.getContext("2d");
   maskCtx.fillStyle = "white";
   
-  // BranchId buffer for fast pixel-to-branch lookup (optimization #2)
-  // Initialize with sentinel value 0xFFFF to avoid black outline artifacts
-  const branchIdBuffer = new Uint16Array(w * h).fill(0xFFFF);
+  // Inside-coral boolean map — 0 = outside, 1 = inside.
+  // Only read when vectorMask is false; kept allocated unconditionally for simplicity.
+  const branchIdBuffer = new Uint8Array(w * h);
   
   // Collect segment shapes for union and smoothing
   const segments = [];
@@ -180,7 +200,28 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     return nearbyBranches;
   };
 
-  const root = new paper.Point(sourceX * w, sourceY * h);
+  let root = new paperScope.Point(sourceX * w, sourceY * h);
+  // The mask's random waviness can occasionally pull inward enough to
+  // leave the root point just outside the mask. When that happens the
+  // first growth step lands outside too and the algorithm terminates
+  // immediately, leaving only the root dot. Snap the root inward until
+  // it's safely inside the mask.
+  if (!mask.contains(root)) {
+    const target = new paperScope.Point(w / 2, h / 2);
+    const dir = target.subtract(root);
+    if (dir.length > 0) {
+      const stepVec = dir.normalize().multiply(2);
+      const maxSteps = Math.ceil(dir.length / 2) + 5;
+      let probe = root;
+      for (let k = 0; k < maxSteps; k++) {
+        probe = probe.add(stepVec);
+        if (mask.contains(probe)) {
+          root = probe;
+          break;
+        }
+      }
+    }
+  }
   // Initialize branches with root skeleton node
   const branches = [{ point: root, parent: null, level: 0, children: 0, creationTime: 0, lengthFromRoot: 0 }];
   // Add root branch to spatial grid
@@ -191,7 +232,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
   const randomInside = () => {
           let p;
       do {
-        p = new paper.Point(Math.random() * w, Math.random() * h);
+        p = new paperScope.Point(Math.random() * w, Math.random() * h);
       } while (!mask.contains(p));
       return p;
   };
@@ -218,7 +259,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     
     for (let y = startY; y <= endY; y++) {
       for (let x = startX; x <= endX; x++) {
-        const pt = new paper.Point(x + 0.5, y + 0.5);
+        const pt = new paperScope.Point(x + 0.5, y + 0.5);
         if (segmentPath.contains(pt)) {
           branchIdBuffer[y * w + x] = branchIndex;
         }
@@ -312,7 +353,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
       if (!mask.contains(to)) return;
 
       // Enforce absolute angle limit relative to vertical
-      const up = new paper.Point(0, -1);
+      const up = new paperScope.Point(0, -1);
       const segAngle = Math.acos(segDir.normalize().dot(up));
       if (!fillMode && segAngle > maxAbsAngle) return;
 
@@ -331,7 +372,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
 
       // Paint junction node when branching directly to mask canvas
       if (parentBranch.children === 2 || parentBranch.level === 0) {
-        const parentNodeShape = new paper.Path.Circle({ center: from, radius: sizeFrom, fillColor: new paper.Color(0,0,0,0) });
+        const parentNodeShape = new paperScope.Path.Circle({ center: from, radius: sizeFrom, fillColor: new paperScope.Color(0,0,0,0) });
         parentNodeShape.meta = { branchIndex: idx };
         paintSegmentToMask(parentNodeShape, idx);
         segments.push(parentNodeShape); // Still keep for skeleton reference
@@ -342,7 +383,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
       const normal = segDir.normalize().rotate(90);
       const w1 = sizeFrom * 2 * segmentScale;
       const w2 = sizeTo * 2 * segmentScale;
-      const segShape = new paper.Path({
+      const segShape = new paperScope.Path({
         segments: [
           from.add(normal.multiply(w1 / 2)),
           from.subtract(normal.multiply(w1 / 2)),
@@ -350,7 +391,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
           to.add(normal.multiply(w2 / 2)),
         ],
         closed: true,
-        fillColor: new paper.Color(0,0,0,0),
+        fillColor: new paperScope.Color(0,0,0,0),
       });
       segShape.meta = { branchIndex: branches.length - 1 };
       paintSegmentToMask(segShape, branches.length - 1);
@@ -358,7 +399,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     
       // Paint connector circle directly to mask canvas
       const connectorRadius = Math.max(w1, w2) * 0.5;
-      const connector = new paper.Path.Circle({ center: from, radius: connectorRadius, fillColor: new paper.Color(0,0,0,0) });
+      const connector = new paperScope.Path.Circle({ center: from, radius: connectorRadius, fillColor: new paperScope.Color(0,0,0,0) });
       connector.meta = { branchIndex: branches.length - 1 };
       paintSegmentToMask(connector, branches.length - 1);
       segments.push(connector); // Still keep for skeleton reference
@@ -400,7 +441,11 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
         // Optional: Simplify segments before merging for better performance
         if (simplifyTolerance > 0 && queue.length > 50) {
           console.log(`  Pre-simplifying ${queue.length} segments...`);
-          queue.forEach(seg => seg.simplify(simplifyTolerance * 0.5)); // Half tolerance for pre-simplify
+          queue.forEach(seg => {
+            if (seg.segments.length > 1) {
+              seg.simplify(simplifyTolerance * 0.5); // Half tolerance for pre-simplify
+            }
+          });
         }
         
         // Merge pairs in parallel-like fashion
@@ -488,7 +533,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
       }
       return true; 
     }
-    paper.view.update();
+    paperScope.view.update();
     return false;
   };
 
@@ -496,13 +541,13 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     branches.forEach((b, idx) => {
       if (b.children === 0) {
         const size = Math.max(1, nodeRadius * Math.pow(tapering, b.level));
-        const tipDot = new paper.Path.Circle({ center: b.point, radius: size, fillColor: new paper.Color(0,0,0,0) });
+        const tipDot = new paperScope.Path.Circle({ center: b.point, radius: size, fillColor: new paperScope.Color(0,0,0,0) });
         tipDot.meta = { branchIndex: idx };
         paintSegmentToMask(tipDot, idx);
         segments.push(tipDot); // Still keep for skeleton reference
       }
     });
-    paper.view.update();
+    paperScope.view.update();
   };
 
   // Create lower resolution canvas for faster gradient rendering
@@ -590,7 +635,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
             if (bufferIdx < branchIdBuffer.length && branchIdBuffer[bufferIdx] !== 0xFFFF) {
               // Use spatial grid to find nearby branches (aggressive optimization)
               const searchRadius = 60; // Further reduced for speed
-              const pt = new paper.Point(x, y); // Still needed for getNearbyBranches
+              const pt = new paperScope.Point(x, y); // Still needed for getNearbyBranches
               const nearbyIndices = getNearbyBranches(pt, searchRadius);
               
               // If no nearby branches found, use even smaller fallback
@@ -641,7 +686,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     let totalRenderTime = 0;
     const MAX_ITERATIONS = 100; // Reasonable limit with our optimizations
     
-    paper.view.onFrame = () => {
+    paperScope.view.onFrame = () => {
       frameCount++;
       
       // Benchmark: Growth iteration
@@ -662,15 +707,15 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
         totalMaskTime += (maskEnd - maskStart);
         
         // Create new raster
-        raster = new paper.Raster({
-          size: paper.view.size,
-          position: paper.view.center
+        raster = new paperScope.Raster({
+          size: paperScope.view.size,
+          position: paperScope.view.center
         });
         
         // Benchmark: Fast gradient rendering
         renderStart = performance.now();
         const maxDepth = maxRootLength;
-        const stops = makeStops(gradientColors);
+        const stops = makeStops(gradientColors, paperScope);
         const ctx = raster.getContext('2d');
         renderFastGradient(ctx, branches, maxDepth, stops, vectorMask);
         renderEnd = performance.now();
@@ -678,7 +723,7 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
       }
       
       if (finished) { 
-        paper.view.onFrame = null;
+        paperScope.view.onFrame = null;
         
         // Benchmark: Drawing tip nodes
         const nodesStart = performance.now();
@@ -700,16 +745,65 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
         const skeletonStart = performance.now();
         if (showSkeleton) {
           branches.forEach(b => {
-            new paper.Path.Circle({ center: b.point, radius: 2, strokeColor: 'cyan', strokeWidth: 1, fillColor: null });
+            new paperScope.Path.Circle({ center: b.point, radius: 2, strokeColor: 'cyan', strokeWidth: 1, fillColor: null });
             if (b.parent) {
-              new paper.Path.Line({ from: b.point, to: b.parent.point, strokeColor: 'cyan', strokeWidth: 0.5 });
+              new paperScope.Path.Line({ from: b.point, to: b.parent.point, strokeColor: 'cyan', strokeWidth: 0.5 });
             }
           });
         }
         const skeletonEnd = performance.now();
         console.log(`Skeleton drawing: ${(skeletonEnd - skeletonStart).toFixed(2)}ms`);
         
-        paper.view.update();
+        paperScope.view.update();
+        
+        // Apply texture after animation is complete
+        if (texture && textureStrength > 0 && textureImage) {
+          setTimeout(() => {
+            const canvas = paperScope.view.element;
+            const ctx = canvas.getContext('2d');
+            
+            // Create a temporary canvas with just the coral shape
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // Copy current coral to temp canvas
+            tempCtx.drawImage(canvas, 0, 0);
+            
+            // Apply texture to temp canvas
+            tempCtx.save();
+            tempCtx.globalAlpha = textureStrength;
+            tempCtx.globalCompositeOperation = TEXTURE_BLEND_MODE;
+            
+            // Scale texture based on TEXTURE_SCALE constant
+            const scaledW = canvas.width * TEXTURE_SCALE;
+            const scaledH = canvas.height * TEXTURE_SCALE;
+            
+            // If scaling down, create tiled pattern
+            if (TEXTURE_SCALE <= 1) {
+              const pattern = tempCtx.createPattern(textureImage, 'repeat');
+              const matrix = new DOMMatrix().scale(TEXTURE_SCALE, TEXTURE_SCALE);
+              pattern.setTransform(matrix);
+              tempCtx.fillStyle = pattern;
+              tempCtx.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+              // If scaling up, just stretch the texture
+              tempCtx.drawImage(textureImage, 0, 0, scaledW, scaledH);
+            }
+            tempCtx.restore();
+            
+            // Clear the original canvas and redraw only the textured coral
+            // Reset the devicePixelRatio transform that Paper.js applied so
+            // the backing-store-sized tempCanvas maps 1:1 to ctx (otherwise
+            // the texture is drawn 2x too large on HiDPI displays).
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.globalCompositeOperation = 'source-atop';
+            ctx.drawImage(tempCanvas, 0, 0);
+            ctx.restore();
+          }, 100);
+        }
       }
     };
   } else {
@@ -739,15 +833,15 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
       console.log(`Mask building: ${(maskEnd - maskStart).toFixed(2)}ms`);
       
       // Create raster for gradient rendering
-      const raster = new paper.Raster({
-        size: paper.view.size,
-        position: paper.view.center
+      const raster = new paperScope.Raster({
+        size: paperScope.view.size,
+        position: paperScope.view.center
       });
       
       // Benchmark: Fast gradient rendering
       renderStart = performance.now();
       const maxDepth = maxRootLength;
-      const stops2 = makeStops(gradientColors);
+      const stops2 = makeStops(gradientColors, paperScope);
       renderFastGradient(raster.getContext('2d'), branches, maxDepth, stops2, vectorMask);
       renderEnd = performance.now();
       console.log(`Gradient rendering: ${(renderEnd - renderStart).toFixed(2)}ms`);
@@ -757,9 +851,9 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     const skeletonStart = performance.now();
     if (showSkeleton) {
       branches.forEach(b => {
-        new paper.Path.Circle({ center: b.point, radius: 2, strokeColor: 'cyan', strokeWidth: 1, fillColor: null });
+        new paperScope.Path.Circle({ center: b.point, radius: 2, strokeColor: 'cyan', strokeWidth: 1, fillColor: null });
         if (b.parent) {
-          new paper.Path.Line({ from: b.point, to: b.parent.point, strokeColor: 'cyan', strokeWidth: 0.5 });
+          new paperScope.Path.Line({ from: b.point, to: b.parent.point, strokeColor: 'cyan', strokeWidth: 0.5 });
         }
       });
     }
@@ -769,15 +863,93 @@ const growCoral = ({ mask, animate = true, attractorCount = 250, maxAbsAngle = M
     const totalTime = (iterEnd - iterStart) + (nodesEnd - nodesStart) + (segments.length > 0 ? (maskEnd - maskStart) + (renderEnd - renderStart) : 0) + (skeletonEnd - skeletonStart);
     console.log(`Total time: ${totalTime.toFixed(2)}ms`);
     
-    paper.view.update();
+    paperScope.view.update();
+    
+    // Apply texture for synchronous rendering
+    if (texture && textureStrength > 0 && textureImage) {
+      setTimeout(() => {
+        const canvas = paperScope.view.element;
+        const ctx = canvas.getContext('2d');
+        
+        // Create a temporary canvas with just the coral shape
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // Copy current coral to temp canvas
+        tempCtx.drawImage(canvas, 0, 0);
+        
+        // Apply texture to temp canvas
+        tempCtx.save();
+        tempCtx.globalAlpha = textureStrength;
+        tempCtx.globalCompositeOperation = TEXTURE_BLEND_MODE;
+        
+        // Scale texture based on TEXTURE_SCALE constant
+        const scaledW = canvas.width * TEXTURE_SCALE;
+        const scaledH = canvas.height * TEXTURE_SCALE;
+        
+        // If scaling down, create tiled pattern
+        if (TEXTURE_SCALE <= 1) {
+          const pattern = tempCtx.createPattern(textureImage, 'repeat');
+          const matrix = new DOMMatrix().scale(TEXTURE_SCALE, TEXTURE_SCALE);
+          pattern.setTransform(matrix);
+          tempCtx.fillStyle = pattern;
+          tempCtx.fillRect(0, 0, canvas.width, canvas.height);
+        } else {
+          // If scaling up, just stretch the texture
+          tempCtx.drawImage(textureImage, 0, 0, scaledW, scaledH);
+        }
+        tempCtx.restore();
+        
+        // Clear the original canvas and redraw only the textured coral
+        // Reset Paper.js's devicePixelRatio transform so the backing-store-
+        // sized tempCanvas maps 1:1 to ctx (fixes HiDPI misalignment).
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.drawImage(tempCanvas, 0, 0);
+        ctx.restore();
+      }, 50);
+    }
   }
+};
+
+// Utility: get and parse hook parameters from element's dataset
+const getHookParams = (el, defaultParams) => {
+    const parseValue = (value, defaultValue) => {
+        if (value === null || value === undefined) return defaultValue;
+
+        if (typeof defaultValue === 'boolean') {
+            return value === 'true';
+        }
+        if (typeof defaultValue === 'number') {
+            const num = parseFloat(value);
+            return isNaN(num) ? defaultValue : num;
+        }
+        if (Array.isArray(defaultValue)) {
+            try {
+                return JSON.parse(value);
+            } catch (e) {
+                console.error(`Could not parse JSON for data attribute:`, value);
+                return defaultValue;
+            }
+        }
+        return value;
+    };
+    
+    const overrides = {};
+    for (const key in defaultParams) {
+        if (el.dataset[key] !== undefined) {
+            overrides[key] = parseValue(el.dataset[key], defaultParams[key]);
+        }
+    }
+    return { ...defaultParams, ...overrides };
 };
 
 const GrowCoral = {
   mounted() {
-    this.canvas = createCanvas(this.el);
-    paper.setup(this.canvas);
-
+    // Parse params first to get canvas dimensions if specified
     const defaultParams = {
       size: 0.3,
       strength: 0.1,
@@ -792,10 +964,45 @@ const GrowCoral = {
       sourceY: 1,
       gradientColors: ["black","red","#fff"],
       showSkeleton: true,
+      smoothness: 0.5,
+      weirdness: 0.0,
+      simplifyTolerance: 5,
+      branchShyness: 1,
+      showMask: true,
+      drawingMode: false,
+      customMaskPoints: [],
+      canvasWidth: null,
+      canvasHeight: null,
+      controls: false,
+      regenOnClick: false,
+      texture: false,
+      textureStrength: 1,
     };
-    this.renderCoral(defaultParams);
+    
+    // Preload static noise texture
+    this.noiseImageLoaded = false;
+    this.noiseImage = new Image();
+    this.noiseImage.onload = () => { this.noiseImageLoaded = true; };
+    this.noiseImage.src = "/images/noise.jpg";
 
-    this.handleEvent("update_coral", params => this.renderCoral(params));
+    this.params = getHookParams(this.el, defaultParams);
+    
+    // Create canvas with explicit dimensions if provided
+    this.canvas = createCanvas(this.el, this.params.canvasWidth, this.params.canvasHeight);
+    
+    // Create isolated Paper.js scope for this coral instance
+    this.paperScope = new paper.PaperScope();
+    this.paperScope.setup(this.canvas);
+    
+    this.renderCoral(this.params);
+
+    if (this.params.controls) {
+      this.createControlsOverlay();
+    }
+
+    this.handleEvent("update_coral", params => {
+        this.renderCoral({ ...this.params, ...params });
+    });
     
     // Mouse event handlers for drawing custom mask
     this.isDrawing = false;
@@ -803,31 +1010,42 @@ const GrowCoral = {
     this.canvas.addEventListener('mousedown', e => this.handleMouseDown(e));
     this.canvas.addEventListener('mousemove', e => this.handleMouseMove(e));
     document.addEventListener('mouseup', e => this.handleMouseUp(e));
+ 
+    // Regenerate coral on click if enabled
+    if (this.params.regenOnClick) {
+      this.canvas.addEventListener('click', () => {
+        this.renderCoral(this.params);
+      });
+    }
   },
 
   renderCoral(params) {
-    if (paper.project) paper.project.remove();
+    // Activate this coral's Paper.js scope
+    this.paperScope.activate();
     
-    // Update canvas size if provided
+    if (this.paperScope.project) this.paperScope.project.remove();
+    
+    // Update backing-store resolution if provided. Don't touch
+    // canvas.style.width/height — those are set to 100% by createCanvas
+    // so the canvas scales to its parent div (which is sized via Tailwind
+    // classes and may differ between mobile and desktop).
     if (params.canvasWidth && params.canvasHeight) {
       this.canvas.width = params.canvasWidth;
       this.canvas.height = params.canvasHeight;
-      this.canvas.style.width = params.canvasWidth + "px";
-      this.canvas.style.height = params.canvasHeight + "px";
     }
     
-    paper.setup(this.canvas);
-    const { size = 0.3, strength = 0.1, showMask = true, drawingMode = false, fillMode = false, sourceX = 0.5, sourceY = 1, gradientColors = ["black","red","#fff"], showSkeleton = true, customMaskPoints = [], canvasWidth, canvasHeight, ...grow } = params;
+    this.paperScope.setup(this.canvas);
+    const { size, strength, showMask, drawingMode, fillMode, sourceX, sourceY, gradientColors, showSkeleton, customMaskPoints, ...grow } = params;
     
     this.drawingMode = drawingMode;
     
     let mask;
     if (customMaskPoints.length > 2) {
       // Use custom drawn mask
-      mask = drawCustomMask(customMaskPoints);
+      mask = drawCustomMask(customMaskPoints, this.paperScope);
     } else {
       // Use parametric mask
-      mask = drawMask({ size, strength });
+      mask = drawMask({ size, strength }, this.paperScope);
     }
     
     if (!showMask) {
@@ -835,7 +1053,19 @@ const GrowCoral = {
       mask.strokeColor = null;
     }
     
-    growCoral({ mask, fillMode, sourceX, sourceY, gradientColors, showSkeleton, ...grow });
+    growCoral({ 
+      mask, 
+      fillMode, 
+      sourceX, 
+      sourceY, 
+      gradientColors, 
+      showSkeleton, 
+      texture: params.texture && this.noiseImageLoaded,
+      textureStrength: params.textureStrength,
+      textureImage: this.noiseImage,
+      paperScope: this.paperScope,
+      ...grow 
+    });
   },
 
   handleCanvasClick(event) {
@@ -850,14 +1080,14 @@ const GrowCoral = {
 
   eventToPoint(event) {
     const rect = this.canvas.getBoundingClientRect();
-    return new paper.Point(event.clientX - rect.left, event.clientY - rect.top);
+    return new this.paperScope.Point(event.clientX - rect.left, event.clientY - rect.top);
   },
 
   handleMouseDown(event) {
     if (!this.drawingMode) return;
     this.isDrawing = true;
     const pt = this.eventToPoint(event);
-    this.currentPath = new paper.Path();
+    this.currentPath = new this.paperScope.Path();
     this.currentPath.strokeColor = 'blue';
     this.currentPath.strokeWidth = 4;
     this.currentPath.opacity = 0.3;
@@ -868,7 +1098,7 @@ const GrowCoral = {
     if (!this.isDrawing) return;
     const pt = this.eventToPoint(event);
     this.currentPath.add(pt);
-    paper.view.update();
+    this.paperScope.view.update();
   },
 
   handleMouseUp(event) {
@@ -880,7 +1110,7 @@ const GrowCoral = {
     if (this.currentPath.segments.length > 2) {
       this.currentPath.simplify(2);
       this.currentPath.closed = true;
-      this.currentPath.fillColor = new paper.Color(0, 0, 1, 0.1);
+      this.currentPath.fillColor = new this.paperScope.Color(0, 0, 1, 0.1);
       this.currentPath.strokeColor = null;
 
       const points = this.currentPath.segments.map(seg => [seg.point.x, seg.point.y]);
@@ -891,10 +1121,306 @@ const GrowCoral = {
     this.currentPath = null;
   },
 
+  createControlsOverlay() {
+    // Create the main overlay container
+    this.overlay = document.createElement("div");
+    this.overlay.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 320px;
+      height: 500px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 9999;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      resize: both;
+      overflow: hidden;
+      min-width: 300px;
+      min-height: 400px;
+    `;
+
+    // Create header with drag handle and close button
+    const header = document.createElement("div");
+    header.style.cssText = `
+      background: #f5f5f5;
+      padding: 8px 12px;
+      border-bottom: 1px solid #ddd;
+      cursor: move;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    `;
+    header.innerHTML = `
+      <span style="font-weight: 600;">Coral Controls</span>
+      <button style="background: none; border: none; font-size: 16px; cursor: pointer;">&times;</button>
+    `;
+
+    // Close button functionality
+    header.querySelector("button").addEventListener("click", () => {
+      this.overlay.remove();
+    });
+
+    // Make draggable
+    this.makeDraggable(header);
+
+    // Create scrollable content area
+    const content = document.createElement("div");
+    content.style.cssText = `
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    `;
+
+    // Create form
+    const form = document.createElement("form");
+    form.style.cssText = `
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    `;
+
+    // Add form controls
+    form.innerHTML = this.generateFormHTML();
+
+    // Add event listeners to form inputs
+    this.attachFormListeners(form);
+
+    content.appendChild(form);
+    this.overlay.appendChild(header);
+    this.overlay.appendChild(content);
+    document.body.appendChild(this.overlay);
+  },
+
+  makeDraggable(handle) {
+    let isDragging = false;
+    let startX, startY, startLeft, startTop;
+
+    handle.addEventListener("mousedown", (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = parseInt(this.overlay.style.left || this.overlay.offsetLeft);
+      startTop = parseInt(this.overlay.style.top || this.overlay.offsetTop);
+      
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+      e.preventDefault();
+    });
+
+    const onMouseMove = (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+      this.overlay.style.left = (startLeft + deltaX) + "px";
+      this.overlay.style.top = (startTop + deltaY) + "px";
+      this.overlay.style.right = "auto";
+    };
+
+    const onMouseUp = () => {
+      isDragging = false;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+  },
+
+  generateFormHTML() {
+    const p = this.params;
+    return `
+      ${this.renderSlider("Canvas width", "canvasWidth", 200, 1000, p.canvasWidth || 400)}
+      ${this.renderSlider("Canvas height", "canvasHeight", 150, 1000, p.canvasHeight || 300)}
+      ${this.renderSlider("Source X", "sourceX", 0, 1, p.sourceX, 0.05)}
+      ${this.renderSlider("Source Y", "sourceY", 0, 1, p.sourceY, 0.05)}
+      ${this.renderSlider("Attractors", "attractorCount", 50, 500, p.attractorCount)}
+      ${this.renderSlider("Max angle", "maxAbsAngle", 0, 3.14, p.maxAbsAngle, 0.1)}
+      ${this.renderSlider("Segment length", "segmentLength", 3, 30, p.segmentLength)}
+      ${this.renderSlider("Node radius", "nodeRadius", 1, 30, p.nodeRadius)}
+      ${this.renderSlider("Tapering", "tapering", 0.5, 0.99, p.tapering, 0.01)}
+      ${this.renderSlider("Segment scale", "segmentScale", 0.3, 5, p.segmentScale, 0.05)}
+      ${this.renderSlider("Mask size", "size", 0.1, 1, p.size, 0.05)}
+      ${this.renderSlider("Mask strength", "strength", 0.05, 1, p.strength, 0.02)}
+      ${this.renderCheckbox("Fill mode", "fillMode", p.fillMode)}
+      ${this.renderSlider("Simplify tolerance", "simplifyTolerance", 0, 20, p.simplifyTolerance)}
+      ${this.renderSlider("Smoothness", "smoothness", 0, 2, p.smoothness, 0.1)}
+      ${this.renderSlider("Weirdness", "weirdness", 0, 1, p.weirdness, 0.05)}
+      ${this.renderSlider("Branch shyness", "branchShyness", 0, 3, p.branchShyness, 0.1)}
+      ${this.renderCheckbox("Show Mask", "showMask", p.showMask)}
+      ${this.renderCheckbox("Show Skeleton", "showSkeleton", p.showSkeleton)}
+      ${this.renderCheckbox("Texture", "texture", p.texture)}
+      ${this.renderSlider("Texture Strength", "textureStrength", 0, 1, p.textureStrength, 0.05)}
+      <div style="grid-column: 1 / -1;">
+        <label style="display: flex; flex-direction: column; font-size: 11px;">
+          <span>Gradient Colors (JSON):</span>
+          <input type="text" name="gradientColors" value='${JSON.stringify(p.gradientColors)}' 
+                 style="margin-top: 2px; padding: 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px;">
+        </label>
+      </div>
+      <div style="grid-column: 1 / -1; margin-top: 12px;">
+        <button type="button" id="copy-config" style="
+          background: #3b82f6; 
+          color: white; 
+          border: none; 
+          padding: 8px 12px; 
+          border-radius: 4px; 
+          font-size: 11px; 
+          cursor: pointer;
+          width: 100%;
+        ">Copy Data Attributes</button>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label style="display: flex; flex-direction: column; font-size: 10px;">
+          <span style="margin-bottom: 4px; font-weight: 600;">Current Configuration (data-* attributes):</span>
+          <textarea id="config-output" readonly style="
+            font-family: monospace; 
+            font-size: 9px; 
+            background: #f5f5f5; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            padding: 8px; 
+            height: 120px; 
+            resize: vertical;
+            white-space: pre;
+          ">${this.generateDataAttributes()}</textarea>
+        </label>
+      </div>
+    `;
+  },
+
+  renderSlider(label, name, min, max, value, step = 1) {
+    return `
+      <label style="display: flex; flex-direction: column; font-size: 11px;">
+        <span>${label}: <span data-value="${name}">${value}</span></span>
+        <input type="range" name="${name}" min="${min}" max="${max}" step="${step}" value="${value}"
+               style="margin-top: 2px;">
+      </label>
+    `;
+  },
+
+  renderCheckbox(label, name, checked) {
+    return `
+      <label style="display: flex; align-items: center; gap: 4px; font-size: 11px;">
+        <input type="checkbox" name="${name}" ${checked ? 'checked' : ''}>
+        <span>${label}</span>
+      </label>
+    `;
+  },
+
+  attachFormListeners(form) {
+    // Handle range inputs
+    form.querySelectorAll('input[type="range"]').forEach(input => {
+      const updateValue = () => {
+        const valueSpan = form.querySelector(`[data-value="${input.name}"]`);
+        if (valueSpan) valueSpan.textContent = input.value;
+        this.updateParam(input.name, parseFloat(input.value));
+      };
+      
+      input.addEventListener('input', updateValue);
+      input.addEventListener('change', updateValue);
+    });
+
+    // Handle checkboxes
+    form.querySelectorAll('input[type="checkbox"]').forEach(input => {
+      input.addEventListener('change', () => {
+        this.updateParam(input.name, input.checked);
+      });
+    });
+
+    // Handle gradient colors text input
+    const gradientInput = form.querySelector('input[name="gradientColors"]');
+    if (gradientInput) {
+      gradientInput.addEventListener('change', () => {
+        try {
+          const colors = JSON.parse(gradientInput.value);
+          this.updateParam('gradientColors', colors);
+        } catch (e) {
+          console.error('Invalid gradient colors JSON:', e);
+        }
+      });
+    }
+
+    // Handle copy config button
+    const copyButton = form.querySelector('#copy-config');
+    if (copyButton) {
+      copyButton.addEventListener('click', async () => {
+        const configOutput = form.querySelector('#config-output');
+        if (configOutput) {
+          try {
+            await navigator.clipboard.writeText(configOutput.value);
+            
+            // Visual feedback
+            const originalText = copyButton.textContent;
+            copyButton.textContent = 'Copied!';
+            copyButton.style.background = '#10b981';
+            setTimeout(() => {
+              copyButton.textContent = originalText;
+              copyButton.style.background = '#3b82f6';
+            }, 1000);
+          } catch (err) {
+            // Fallback for older browsers
+            configOutput.select();
+            document.execCommand('copy');
+            console.log('Fallback copy used');
+          }
+        }
+      });
+    }
+  },
+
+  updateParam(key, value) {
+    this.params[key] = value;
+    this.renderCoral(this.params);
+    
+    // Update the config output if the overlay exists
+    if (this.overlay) {
+      const configOutput = this.overlay.querySelector('#config-output');
+      if (configOutput) {
+        configOutput.value = this.generateDataAttributes();
+      }
+    }
+  },
+
+  generateDataAttributes() {
+    const p = this.params;
+    const attrs = [
+      `data-canvas-width="${p.canvasWidth || 80}"`,
+      `data-canvas-height="${p.canvasHeight || 80}"`,
+      `data-size="${p.size}"`,
+      `data-tapering="${p.tapering}"`,
+      `data-smoothness="${p.smoothness}"`,
+      `data-weirdness="${p.weirdness}"`,
+      `data-attractor-count="${p.attractorCount}"`,
+      `data-max-abs-angle="${p.maxAbsAngle.toFixed(2)}"`,
+      `data-node-radius="${p.nodeRadius}"`,
+      `data-segment-length="${p.segmentLength}"`,
+      `data-segment-scale="${p.segmentScale}"`,
+      `data-show-mask="${p.showMask}"`,
+      `data-strength="${p.strength}"`,
+      `data-branch-shyness="${p.branchShyness}"`,
+      `data-fill-mode="${p.fillMode}"`,
+      `data-source-x="${p.sourceX}"`,
+      `data-source-y="${p.sourceY}"`,
+      `data-gradient-colors='${JSON.stringify(p.gradientColors)}'`,
+      `data-show-skeleton="${p.showSkeleton}"`,
+      `data-simplify-tolerance="${p.simplifyTolerance}"`,
+      `data-vector-mask="${p.vectorMask || false}"`,
+      `data-texture="${p.texture}"`,
+      `data-texture-strength="${p.textureStrength}"`
+    ];
+    
+    return attrs.join('\n');
+  },
+
   destroyed() {
     // Clean up the paper project and DOM element
-    if (paper.project) paper.project.remove();
+    if (this.paperScope && this.paperScope.project) this.paperScope.project.remove();
     if (this.canvas) this.canvas.remove();
+    if (this.overlay) this.overlay.remove();
   },
 };
 

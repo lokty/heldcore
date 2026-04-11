@@ -18,6 +18,7 @@ defmodule HeldcoreWeb.Router do
     pipe_through :browser
 
     live "/coral", CoralLive
+    live "/impressum", ImpressumLive
     live "/", HomePageLive
   end
 
